@@ -1,0 +1,10 @@
+node_modules
+dist
+.wrangler
+.browser-profile
+.dev.vars
+.env*
+!.env.example
+*.local
+*.log
+.DS_Store
