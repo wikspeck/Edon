@@ -7,6 +7,7 @@ import { PropertiesPanel } from './PropertiesPanel'
 import { Toolbar } from './Toolbar'
 import { TopBar } from './TopBar'
 import { useEditorShortcuts } from './useEditorShortcuts'
+import { ArtKitPanel } from './ArtKitPanel'
 
 interface EditorViewProps {
   document: EdonDocument
@@ -30,6 +31,7 @@ function EditorWorkspace({ onChange, onBack }: Omit<EditorViewProps, 'document'>
       <Toolbar />
       {leftPanelOpen && <LayersPanel />}
       <Canvas />
+      <ArtKitPanel />
       {rightPanelOpen && <PropertiesPanel />}
     </div>
     <div className="screen-too-small"><span>edon</span><strong>A little more room, please.</strong><p>The editor is designed for a desktop-sized workspace. Widen the window to continue editing.</p></div>

@@ -1,12 +1,15 @@
-import { ArrowLeft, Check, ChevronDown, Download, Group, PanelLeftClose, PanelRightClose, Redo2, Undo2 } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Download, Group, Palette, PanelLeftClose, PanelRightClose, Redo2, Undo2 } from 'lucide-react'
 import type { EdonDocument } from '../model/document'
 import { BrandMark } from '../ui/BrandMark'
 import { IconButton } from '../ui/IconButton'
 import { useEditor } from './editor-state'
+import { useState } from 'react'
+import { ExportDialog } from './ExportDialog'
 
 export function TopBar({ onBack }: { onBack: () => void }) {
   const editor = useEditor()
-  return <header className="editor-topbar">
+  const [exportOpen, setExportOpen] = useState(false)
+  return <><header className="editor-topbar">
     <div className="topbar-left">
       <IconButton label="Back to files" onClick={onBack}><ArrowLeft size={15} /></IconButton>
       <div className="editor-brand"><BrandMark size={20} /><span>edon</span></div>
@@ -20,13 +23,14 @@ export function TopBar({ onBack }: { onBack: () => void }) {
     <div className="topbar-document"><input aria-label="Document name" defaultValue={editor.document.name} key={editor.document.id} onBlur={(event) => event.target.value.trim() && event.target.value !== editor.document.name && editor.renameDocument(event.target.value.trim())} /><span className="save-indicator"><Check size={11} /> Saved locally</span></div>
     {editor.selectionIds.length > 1 && <div className="multi-selection-chip"><Group size={12} /> {editor.selectionIds.length} objects</div>}
     <div className="topbar-actions">
+      <button className={`art-kit-trigger ${editor.artMode ? 'is-active' : ''}`} onClick={editor.toggleArtMode}><Palette size={14} /> Stylized Art</button><span className="toolbar-separator" />
       <IconButton label="Toggle layers panel" active={editor.leftPanelOpen} onClick={() => editor.togglePanel('left')}><PanelLeftClose size={15} /></IconButton><span className="toolbar-separator" />
       <IconButton label="Undo" shortcut="Ctrl Z" onClick={editor.undo} disabled={!editor.past.length}><Undo2 size={15} /></IconButton><IconButton label="Redo" shortcut="Ctrl Y" onClick={editor.redo} disabled={!editor.future.length}><Redo2 size={15} /></IconButton>
       <div className="zoom-control"><button onClick={() => editor.setZoom(editor.zoom * .9)}>−</button><button className="zoom-value" onClick={() => editor.setZoom(1)}>{Math.round(editor.zoom * 100)}%</button><button onClick={() => editor.setZoom(editor.zoom * 1.1)}>+</button></div><span className="toolbar-separator" />
-      <button className="export-button" onClick={() => downloadDocument(editor.document)}><Download size={14} /> Export <ChevronDown size={12} /></button>
+      <button className="export-button" onClick={() => setExportOpen(true)}><Download size={14} /> Export <ChevronDown size={12} /></button>
       <IconButton label="Toggle properties panel" active={editor.rightPanelOpen} onClick={() => editor.togglePanel('right')}><PanelRightClose size={15} /></IconButton>
     </div>
-  </header>
+  </header>{exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}</>
 }
 
 function downloadDocument(document: EdonDocument) {

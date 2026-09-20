@@ -1,9 +1,10 @@
 import { createContext, useContext, useReducer, useRef, type ReactNode } from 'react'
-import { getActivePage, type EdonDocument, type EdonElement, type ElementType } from '../model/document'
+import { createId, getActivePage, type BrushPreset, type EdonDocument, type EdonElement, type ElementType, type PaletteColor } from '../model/document'
 import { alignSelection, copyPayload, deleteSelection, distributeSelection, duplicateSelection, groupSelection, pastePayload, renameElement, reorderSelection, ungroupSelection, updateElements, type AlignMode, type DistributeMode, type LayerOrder, type SceneResult } from './scene-commands'
 import { booleanElements, canBoolean, type BooleanOperation } from './vector-boolean'
 
-export type EditorTool = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'image' | 'hand'
+export type EditorTool = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'image' | 'hand' | 'pencil' | 'pen' | 'eyedropper' | 'fill'
+export interface ArtToolSettings { color: string; size: number; opacity: number; smoothing: number; stabilization: number; simplify: number; brushPreset: BrushPreset }
 interface HistoryEntry { document: EdonDocument; label: string }
 
 interface EditorState {
@@ -19,6 +20,11 @@ interface EditorState {
   transactionBase: EdonDocument | null
   transactionLabel: string
   canPaste: boolean
+  artMode: boolean
+  silhouettePreview: boolean
+  vectorEditId: string | null
+  artSettings: ArtToolSettings
+  recentColors: string[]
 }
 
 type Action =
@@ -34,6 +40,11 @@ type Action =
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'SET_CAN_PASTE'; value: boolean }
+  | { type: 'TOGGLE_ART_MODE' }
+  | { type: 'SET_SILHOUETTE'; value: boolean }
+  | { type: 'SET_VECTOR_EDIT'; id: string | null }
+  | { type: 'SET_ART_SETTINGS'; patch: Partial<ArtToolSettings> }
+  | { type: 'REMEMBER_COLOR'; color: string }
 
 const touch = (document: EdonDocument): EdonDocument => ({ ...document, updatedAt: new Date().toISOString() })
 
@@ -61,6 +72,11 @@ function reducer(state: EditorState, action: Action): EditorState {
       return { ...state, document: next.document, past: [...state.past, { document: state.document, label: next.label }], future: state.future.slice(1), selectionIds: state.selectionIds.filter((id) => getActivePage(next.document).elements.some((element) => element.id === id)) }
     }
     case 'SET_CAN_PASTE': return { ...state, canPaste: action.value }
+    case 'TOGGLE_ART_MODE': return { ...state, artMode: !state.artMode }
+    case 'SET_SILHOUETTE': return { ...state, silhouettePreview: action.value }
+    case 'SET_VECTOR_EDIT': return { ...state, vectorEditId: action.id }
+    case 'SET_ART_SETTINGS': return { ...state, artSettings: { ...state.artSettings, ...action.patch } }
+    case 'REMEMBER_COLOR': return { ...state, recentColors: [action.color, ...state.recentColors.filter((color) => color !== action.color)].slice(0, 8), artSettings: { ...state.artSettings, color: action.color } }
   }
 }
 
@@ -100,6 +116,18 @@ interface EditorContextValue extends EditorState {
   endTransaction: () => void
   undo: () => void
   redo: () => void
+  toggleArtMode: () => void
+  setSilhouettePreview: (value: boolean) => void
+  setVectorEdit: (id: string | null) => void
+  setArtSettings: (patch: Partial<ArtToolSettings>) => void
+  rememberColor: (color: string) => void
+  addPaletteColor: (name: string, color: string) => void
+  updatePaletteColor: (id: string, patch: Partial<PaletteColor>) => void
+  removePaletteColor: (id: string) => void
+  createShadowShape: () => void
+  selectSame: (mode: 'fill' | 'stroke' | 'type') => void
+  replaceColor: (from: string, to: string) => void
+  flip: (axis: 'horizontal' | 'vertical', duplicate?: boolean) => void
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null)
@@ -108,6 +136,8 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
   const [state, dispatch] = useReducer(reducer, {
     document: initialDocument, selectionIds: [], tool: 'select' as EditorTool, zoom: .5, pan: { x: 0, y: 0 },
     leftPanelOpen: true, rightPanelOpen: true, past: [], future: [], transactionBase: null, transactionLabel: '', canPaste: false,
+    artMode: false, silhouettePreview: false, vectorEditId: null, recentColors: [],
+    artSettings: { color: '#171719', size: 6, opacity: 1, smoothing: 55, stabilization: 35, simplify: 24, brushPreset: 'inking' as BrushPreset },
   })
   const clipboard = useRef<EdonElement[]>([])
   const pasteCount = useRef(0)
@@ -163,6 +193,42 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
     endTransaction: () => dispatch({ type: 'END_TRANSACTION' }),
     undo: () => dispatch({ type: 'UNDO' }),
     redo: () => dispatch({ type: 'REDO' }),
+    toggleArtMode: () => dispatch({ type: 'TOGGLE_ART_MODE' }),
+    setSilhouettePreview: (value) => dispatch({ type: 'SET_SILHOUETTE', value }),
+    setVectorEdit: (id) => dispatch({ type: 'SET_VECTOR_EDIT', id }),
+    setArtSettings: (patch) => dispatch({ type: 'SET_ART_SETTINGS', patch }),
+    rememberColor: (color) => dispatch({ type: 'REMEMBER_COLOR', color }),
+    addPaletteColor: (name, color) => commit({ ...state.document, palette: [...state.document.palette, { id: createId('swatch'), name: name.trim() || 'Color', color }] }, 'Add palette color'),
+    updatePaletteColor: (id, patch) => commit({ ...state.document, palette: state.document.palette.map((item) => item.id === id ? { ...item, ...patch } : item) }, 'Edit palette color'),
+    removePaletteColor: (id) => commit({ ...state.document, palette: state.document.palette.filter((item) => item.id !== id) }, 'Remove palette color'),
+    createShadowShape: () => {
+      if (!selectedElements.length) return
+      const shadowIds: string[] = []
+      const selected = new Set(state.selectionIds)
+      commit(updateElements(state.document, (elements) => {
+        const next: EdonElement[] = []
+        for (const element of elements) {
+          if (selected.has(element.id) && element.type !== 'group') {
+            const id = createId(element.type)
+            shadowIds.push(id)
+            next.push({ ...structuredClone(element), id, name: `${element.name} shadow`, x: element.x + 12, y: element.y + 12, fill: '#241D2A', fillPaint: { type: 'solid', color: '#241D2A' }, stroke: '#241D2A', effects: [], opacity: .82 })
+          }
+          next.push(element)
+        }
+        return next
+      }), 'Create shadow shape', shadowIds)
+    },
+    selectSame: (mode) => {
+      if (!selectedElement) return
+      dispatch({ type: 'SET_SELECTION', ids: page.elements.filter((element) => mode === 'type' ? element.type === selectedElement.type : mode === 'fill' ? element.fill.toLowerCase() === selectedElement.fill.toLowerCase() : element.stroke.toLowerCase() === selectedElement.stroke.toLowerCase()).map((element) => element.id) })
+    },
+    replaceColor: (from, to) => commit(updateElements(state.document, (elements) => elements.map((element) => ({ ...element, fill: element.fill.toLowerCase() === from.toLowerCase() ? to : element.fill, fillPaint: element.fillPaint.type === 'solid' && element.fillPaint.color.toLowerCase() === from.toLowerCase() ? { type: 'solid', color: to } : element.fillPaint, stroke: element.stroke.toLowerCase() === from.toLowerCase() ? to : element.stroke }))), 'Replace color'),
+    flip: (axis, duplicate = false) => {
+      let ids = state.selectionIds
+      let document = state.document
+      if (duplicate) { const result = duplicateSelection(document, ids, 16); document = result.document; ids = result.selectionIds }
+      commit(updateElements(document, (elements) => elements.map((element) => ids.includes(element.id) ? { ...element, [axis === 'horizontal' ? 'scaleX' : 'scaleY']: -element[axis === 'horizontal' ? 'scaleX' : 'scaleY'] } : element)), `${duplicate ? 'Mirror duplicate' : 'Flip'} ${axis}`, ids)
+    },
   }
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>
@@ -170,5 +236,5 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
 
 export function useEditor(): EditorContextValue { const context = useContext(EditorContext); if (!context) throw new Error('useEditor must be used inside EditorProvider'); return context }
 
-export const TOOL_LABELS: Record<EditorTool, string> = { select: 'Select', frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', line: 'Line', arrow: 'Arrow', polygon: 'Polygon', star: 'Star', text: 'Text', image: 'Image', hand: 'Hand' }
+export const TOOL_LABELS: Record<EditorTool, string> = { select: 'Select', frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', line: 'Line', arrow: 'Arrow', polygon: 'Polygon', star: 'Star', text: 'Text', image: 'Image', hand: 'Hand', pencil: 'Pencil', pen: 'Pen', eyedropper: 'Eyedropper', fill: 'Fill' }
 export const DRAWABLE_TOOLS: ElementType[] = ['frame', 'rectangle', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text']

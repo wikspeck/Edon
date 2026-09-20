@@ -28,12 +28,15 @@ export function useEditorShortcuts(): void {
       if (modifier && event.shiftKey && key === 'l') return run(() => editor.toggleSelection('locked'))
       if (modifier && event.shiftKey && key === 'h') return run(() => editor.toggleSelection('visible'))
       if (key === 'delete' || key === 'backspace') return run(editor.removeSelected)
-      if (key === 'escape') return run(() => { editor.select(null); editor.setTool('select') })
+      if (key === 'escape') return run(() => { editor.setVectorEdit(null); editor.select(null); editor.setTool('select') })
       if (key === '+' || key === '=') return run(() => editor.setZoom(editor.zoom * 1.1))
       if (key === '-') return run(() => editor.setZoom(editor.zoom * .9))
       if (key === '1') return run(() => editor.setZoom(1))
       if (key === '2') return run(() => editor.setZoom(.5))
       if (!modifier && !event.altKey) {
+        if (editor.artMode && key === 'n') return run(() => editor.setTool('pencil'))
+        if (editor.artMode && key === 'p') return run(() => editor.setTool('pen'))
+        if (editor.artMode && key === 'i') return run(() => editor.setTool('eyedropper'))
         const tool = toolShortcuts[key]
         if (tool) run(() => editor.setTool(tool))
       }

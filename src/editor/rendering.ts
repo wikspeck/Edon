@@ -24,6 +24,10 @@ export function elementFilter(element: EdonElement): string | undefined {
     if (!effect.enabled) continue
     if (effect.type === 'gaussian-blur') filters.push(`blur(${effect.radius}px)`)
     if (effect.type === 'drop-shadow') filters.push(`drop-shadow(${effect.offsetX}px ${effect.offsetY}px ${effect.blur}px ${withOpacity(effect.color, effect.opacity)})`)
+    if (effect.type === 'stylized-shadow') {
+      const radians = effect.angle * Math.PI / 180
+      filters.push(`drop-shadow(${Math.cos(radians) * effect.distance}px ${Math.sin(radians) * effect.distance}px 0 ${withOpacity(effect.color, effect.opacity)})`)
+    }
     if (effect.type === 'glow') filters.push(`drop-shadow(0 0 ${effect.blur}px ${withOpacity(effect.color, effect.opacity)})`)
     if (effect.type === 'outline') {
       const color = withOpacity(effect.color, effect.opacity)
@@ -52,14 +56,17 @@ export function baseElementStyle(element: EdonElement): CSSProperties {
   }
 }
 
-export function polygonPoints(count = 6, innerRadius?: number): string {
+export function polygonPoints(count = 6, innerRadius?: number, imperfection = 0, seed = 1): string {
   const total = innerRadius ? Math.max(3, count) * 2 : Math.max(3, count)
   return Array.from({ length: total }, (_, index) => {
-    const radius = innerRadius && index % 2 ? 50 * innerRadius : 50
+    const jitter = imperfection ? (seeded(seed + index * 97) - .5) * imperfection * .32 : 0
+    const radius = (innerRadius && index % 2 ? 50 * innerRadius : 50) + jitter
     const angle = -Math.PI / 2 + index * Math.PI * 2 / total
     return `${50 + Math.cos(angle) * radius},${50 + Math.sin(angle) * radius}`
   }).join(' ')
 }
+
+const seeded = (value: number) => { const x = Math.sin(value * 12.9898) * 43758.5453; return x - Math.floor(x) }
 
 export function withOpacity(color: string, opacity: number): string {
   const match = /^#([0-9a-f]{6})$/i.exec(color)
