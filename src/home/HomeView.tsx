@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowUpRight, FilePlus2, Folder, Grid2X2, List, MoreHorizontal, Search, Settings } from 'lucide-react'
+import { ArrowUpRight, FilePlus2, Folder, Grid2X2, List, Search } from 'lucide-react'
 import type { EdonDocument } from '../model/document'
 import { BrandMark } from '../ui/BrandMark'
 import { IconButton } from '../ui/IconButton'
@@ -30,10 +30,9 @@ export function HomeView({ documents, onCreate, onOpen }: HomeViewProps) {
         <button className="new-file-button" onClick={() => setCreating(true)}><FilePlus2 size={16} /> New file</button>
         <nav className="home-nav" aria-label="File navigation">
           <button className="is-active"><Grid2X2 size={16} /> Recent</button>
-          <button><Folder size={16} /> Projects <span className="coming-soon">Soon</span></button>
+          <button disabled><Folder size={16} /> Projects <span className="coming-soon">Soon</span></button>
         </nav>
         <div className="home-sidebar-footer">
-          <button><Settings size={16} /> Settings</button>
           <div className="account-chip"><span>WK</span><div><strong>Local workspace</strong><small>Saved in this browser</small></div></div>
         </div>
       </aside>
@@ -62,7 +61,7 @@ export function HomeView({ documents, onCreate, onOpen }: HomeViewProps) {
                     </div>
                     <button className="file-open-action" aria-label={`Open ${document.name}`}><ArrowUpRight size={16} /></button>
                   </div>
-                  <div className="file-meta"><div><strong>{document.name}</strong><span>{page.width} × {page.height} · Edited {formatUpdated(document.updatedAt)}</span></div><IconButton label="File options"><MoreHorizontal size={16} /></IconButton></div>
+                  <div className="file-meta"><div><strong>{document.name}</strong><span>{page.width} × {page.height} · Edited {formatUpdated(document.updatedAt)}</span></div></div>
                 </article>
               )
             })}

@@ -1,154 +1,209 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent, type WheelEvent } from 'react'
 import { Crosshair, Move, MousePointer2 } from 'lucide-react'
 import { createElement, type EdonElement, type ElementType } from '../model/document'
+import { CanvasElement } from './CanvasElement'
+import { ContextMenu } from './ContextMenu'
 import { DRAWABLE_TOOLS, useEditor } from './editor-state'
+import { boundsOf, descendantsOf, type Bounds } from './geometry'
+import { imageElementFromFile } from './image-import'
+import { SelectionOverlay, type ResizeHandle } from './SelectionOverlay'
 
 type Point = { x: number; y: number }
+type Guide = { axis: 'x' | 'y'; value: number }
 type Gesture =
-  | { kind: 'draw'; start: Point; current: Point; type: Exclude<ElementType, 'image'> }
-  | { kind: 'move'; id: string; start: Point; origin: Point }
-  | { kind: 'resize'; id: string; start: Point; origin: { width: number; height: number } }
+  | { kind: 'draw'; start: Point; current: Point; type: Exclude<ElementType, 'group' | 'image' | 'path' | 'text'> }
+  | { kind: 'marquee'; start: Point; current: Point; additive: boolean }
+  | { kind: 'move'; start: Point; ids: string[]; targets: EdonElement[]; selectionBounds: Bounds }
+  | { kind: 'resize'; start: Point; handle: Exclude<ResizeHandle, 'rotate'>; targets: EdonElement[]; selectionBounds: Bounds }
+  | { kind: 'rotate'; startAngle: number; targets: EdonElement[]; selectionBounds: Bounds }
   | { kind: 'pan'; start: Point; origin: Point }
 
 export function Canvas() {
-  const { page, tool, zoom, pan, selectedId, selectedElement, setZoom, setPan, select, setTool, addElement, updateElement, beginTransaction, endTransaction } = useEditor()
+  const editor = useEditor()
   const viewportRef = useRef<HTMLDivElement>(null)
   const artboardRef = useRef<HTMLDivElement>(null)
+  const lastTextPointer = useRef<{ id: string; time: number } | null>(null)
   const [gesture, setGesture] = useState<Gesture | null>(null)
+  const [guides, setGuides] = useState<Guide[]>([])
   const [spacePressed, setSpacePressed] = useState(false)
+  const [editingTextId, setEditingTextId] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
-    const down = (event: KeyboardEvent) => event.code === 'Space' && setSpacePressed(true)
+    const down = (event: KeyboardEvent) => event.code === 'Space' && !isTyping(event.target) && setSpacePressed(true)
     const up = (event: KeyboardEvent) => event.code === 'Space' && setSpacePressed(false)
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+    const blur = () => setSpacePressed(false)
+    window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', blur)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', blur) }
   }, [])
 
   const pointInArtboard = (clientX: number, clientY: number): Point | null => {
     const rect = artboardRef.current?.getBoundingClientRect()
     if (!rect || clientX < rect.left || clientY < rect.top || clientX > rect.right || clientY > rect.bottom) return null
-    return { x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom }
+    return { x: (clientX - rect.left) / editor.zoom, y: (clientY - rect.top) / editor.zoom }
   }
 
+  const capture = (event: ReactPointerEvent) => viewportRef.current?.setPointerCapture(event.pointerId)
   const pointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button === 1 || tool === 'hand' || spacePressed) {
-      event.currentTarget.setPointerCapture(event.pointerId)
-      setGesture({ kind: 'pan', start: { x: event.clientX, y: event.clientY }, origin: pan })
-      return
+    setContextMenu(null)
+    if (event.button === 2) return
+    if (event.button === 1 || editor.tool === 'hand' || spacePressed) {
+      capture(event); setGesture({ kind: 'pan', start: { x: event.clientX, y: event.clientY }, origin: editor.pan }); return
     }
     const point = pointInArtboard(event.clientX, event.clientY)
-    if (!point) { select(null); return }
-    if (tool === 'select') { select(null); return }
-    if (!DRAWABLE_TOOLS.includes(tool as ElementType)) return
-    event.currentTarget.setPointerCapture(event.pointerId)
-    if (tool === 'text') {
-      addElement(createElement('text', point.x, point.y))
-      setTool('select')
-      return
+    if (!point) { editor.select(null); return }
+    if (editor.tool === 'select') {
+      if (!event.shiftKey) editor.select(null)
+      capture(event); setGesture({ kind: 'marquee', start: point, current: point, additive: event.shiftKey }); return
     }
-    setGesture({ kind: 'draw', start: point, current: point, type: tool as Exclude<ElementType, 'image' | 'text'> })
+    if (!DRAWABLE_TOOLS.includes(editor.tool as ElementType)) return
+    capture(event)
+    if (editor.tool === 'text') { editor.addElement(createElement('text', point.x, point.y)); editor.setTool('select'); return }
+    setGesture({ kind: 'draw', start: point, current: point, type: editor.tool as Exclude<ElementType, 'group' | 'image' | 'path' | 'text'> })
   }
 
   const elementPointerDown = (event: ReactPointerEvent, element: EdonElement) => {
-    if (tool !== 'select' || element.locked) return
-    event.stopPropagation()
-    viewportRef.current?.setPointerCapture(event.pointerId)
-    select(element.id)
-    beginTransaction()
-    setGesture({ kind: 'move', id: element.id, start: { x: event.clientX, y: event.clientY }, origin: { x: element.x, y: element.y } })
+    if (editor.tool !== 'select' || element.locked || editingTextId === element.id) return
+    event.stopPropagation(); setContextMenu(null)
+    const selectableId = !event.ctrlKey && !event.metaKey && element.parentId ? element.parentId : element.id
+    if (element.type === 'text') {
+      const previous = lastTextPointer.current
+      lastTextPointer.current = { id: element.id, time: event.timeStamp }
+      if (previous?.id === element.id && event.timeStamp - previous.time < 500) { editor.select(element.id); setEditingTextId(element.id); lastTextPointer.current = null; return }
+    }
+    if (event.shiftKey) { editor.select(selectableId, true); return }
+    const alreadySelected = editor.selectionIds.includes(selectableId)
+    if (!alreadySelected) editor.select(selectableId)
+    let ids = alreadySelected ? editor.selectionIds : [selectableId]
+    let targets = descendantsOf(editor.page.elements, ids)
+    if (event.altKey && alreadySelected && !targets.some((target) => target.type === 'group')) {
+      const duplicateIds = editor.duplicate(0)
+      const sourceRoots = ids.map((id) => editor.page.elements.find((item) => item.id === id)).filter((item): item is EdonElement => Boolean(item))
+      targets = sourceRoots.map((item, index) => ({ ...item, id: duplicateIds[index] }))
+      ids = duplicateIds
+    }
+    capture(event); editor.beginTransaction('Move selection')
+    setGesture({ kind: 'move', start: { x: event.clientX, y: event.clientY }, ids, targets: targets.map((target) => ({ ...target })), selectionBounds: boundsOf(targets.filter((target) => ids.includes(target.id))) })
   }
 
-  const resizePointerDown = (event: ReactPointerEvent) => {
-    if (!selectedElement || selectedElement.locked) return
-    event.stopPropagation()
-    viewportRef.current?.setPointerCapture(event.pointerId)
-    beginTransaction()
-    setGesture({ kind: 'resize', id: selectedElement.id, start: { x: event.clientX, y: event.clientY }, origin: { width: selectedElement.width, height: selectedElement.height } })
+  const handlePointerDown = (event: ReactPointerEvent, handle: ResizeHandle) => {
+    event.stopPropagation(); capture(event)
+    const targets = descendantsOf(editor.page.elements, editor.selectionIds).map((target) => ({ ...target }))
+    const selectionBounds = boundsOf(editor.selectedElements)
+    editor.beginTransaction(handle === 'rotate' ? 'Rotate selection' : 'Resize selection')
+    if (handle === 'rotate') {
+      setGesture({ kind: 'rotate', startAngle: angleFromCenter(event.clientX, event.clientY, selectionBounds, artboardRef.current, editor.zoom), targets, selectionBounds })
+    } else setGesture({ kind: 'resize', start: { x: event.clientX, y: event.clientY }, handle, targets, selectionBounds })
   }
 
   const pointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!gesture) return
-    if (gesture.kind === 'pan') {
-      setPan({ x: gesture.origin.x + event.clientX - gesture.start.x, y: gesture.origin.y + event.clientY - gesture.start.y })
-      return
-    }
-    if (gesture.kind === 'draw') {
-      const point = pointInArtboard(event.clientX, event.clientY)
-      if (point) setGesture({ ...gesture, current: point })
-      return
-    }
+    if (gesture.kind === 'pan') { editor.setPan({ x: gesture.origin.x + event.clientX - gesture.start.x, y: gesture.origin.y + event.clientY - gesture.start.y }); return }
+    if (gesture.kind === 'draw' || gesture.kind === 'marquee') { const point = pointInArtboard(event.clientX, event.clientY); if (point) setGesture({ ...gesture, current: point }); return }
     if (gesture.kind === 'move') {
-      updateElement(gesture.id, {
-        x: Math.round(gesture.origin.x + (event.clientX - gesture.start.x) / zoom),
-        y: Math.round(gesture.origin.y + (event.clientY - gesture.start.y) / zoom),
-      }, true)
+      let dx = (event.clientX - gesture.start.x) / editor.zoom
+      let dy = (event.clientY - gesture.start.y) / editor.zoom
+      if (event.shiftKey) {
+        if (Math.abs(dx) > Math.abs(dy)) dy = 0
+        else dx = 0
+      }
+      const snapped = snapMove(editor.page.elements, gesture.ids, gesture.selectionBounds, dx, dy, 6 / editor.zoom, editor.page.width, editor.page.height)
+      setGuides(snapped.guides)
+      const origins = new Map(gesture.targets.map((target) => [target.id, target]))
+      editor.mutateElements((elements) => elements.map((element) => { const origin = origins.get(element.id); return origin ? { ...element, x: Math.round(origin.x + snapped.dx), y: Math.round(origin.y + snapped.dy) } : element }), true)
       return
     }
-    updateElement(gesture.id, {
-      width: Math.max(4, Math.round(gesture.origin.width + (event.clientX - gesture.start.x) / zoom)),
-      height: Math.max(4, Math.round(gesture.origin.height + (event.clientY - gesture.start.y) / zoom)),
-    }, true)
+    if (gesture.kind === 'resize') {
+      const dx = (event.clientX - gesture.start.x) / editor.zoom
+      const dy = (event.clientY - gesture.start.y) / editor.zoom
+      const nextBounds = resizedBounds(gesture.selectionBounds, gesture.handle, dx, dy, event.shiftKey, event.altKey)
+      const origins = new Map(gesture.targets.map((target) => [target.id, target]))
+      editor.mutateElements((elements) => elements.map((element) => { const origin = origins.get(element.id); if (!origin) return element; const relX = gesture.selectionBounds.width ? (origin.x - gesture.selectionBounds.x) / gesture.selectionBounds.width : 0; const relY = gesture.selectionBounds.height ? (origin.y - gesture.selectionBounds.y) / gesture.selectionBounds.height : 0; return { ...element, x: nextBounds.x + relX * nextBounds.width, y: nextBounds.y + relY * nextBounds.height, width: Math.max(1, origin.width * nextBounds.width / Math.max(1, gesture.selectionBounds.width)), height: Math.max(1, origin.height * nextBounds.height / Math.max(1, gesture.selectionBounds.height)) } }), true)
+      return
+    }
+    const angle = angleFromCenter(event.clientX, event.clientY, gesture.selectionBounds, artboardRef.current, editor.zoom)
+    let delta = angle - gesture.startAngle
+    if (event.shiftKey) delta = Math.round(delta / 15) * 15
+    const radians = delta * Math.PI / 180
+    const origins = new Map(gesture.targets.map((target) => [target.id, target]))
+    editor.mutateElements((elements) => elements.map((element) => { const origin = origins.get(element.id); if (!origin) return element; const centerX = origin.x + origin.width / 2; const centerY = origin.y + origin.height / 2; const relX = centerX - gesture.selectionBounds.centerX; const relY = centerY - gesture.selectionBounds.centerY; const rotatedX = relX * Math.cos(radians) - relY * Math.sin(radians); const rotatedY = relX * Math.sin(radians) + relY * Math.cos(radians); return { ...element, x: gesture.selectionBounds.centerX + rotatedX - origin.width / 2, y: gesture.selectionBounds.centerY + rotatedY - origin.height / 2, rotation: origin.rotation + delta } }), true)
   }
 
   const pointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!gesture) return
     if (viewportRef.current?.hasPointerCapture(event.pointerId)) viewportRef.current.releasePointerCapture(event.pointerId)
-    if (gesture.kind === 'draw') {
-      const x = Math.min(gesture.start.x, gesture.current.x)
-      const y = Math.min(gesture.start.y, gesture.current.y)
-      const width = Math.abs(gesture.current.x - gesture.start.x)
-      const height = Math.abs(gesture.current.y - gesture.start.y)
-      if (width > 3 && height > 3) addElement(createElement(gesture.type, x, y, width, height))
-      setTool('select')
-    } else if (gesture.kind === 'move' || gesture.kind === 'resize') {
-      endTransaction()
-    }
-    setGesture(null)
+    if (gesture.kind === 'draw') createDrawnElement(gesture, editor.addElement)
+    else if (gesture.kind === 'marquee') {
+      const box = normalizedRect(gesture.start, gesture.current)
+      const hits = editor.page.elements.filter((element) => element.type !== 'group' && element.visible && !element.locked && intersects(box, element)).map((element) => element.parentId ?? element.id)
+      editor.selectMany(gesture.additive ? [...editor.selectionIds, ...hits] : hits)
+    } else if (gesture.kind === 'move' || gesture.kind === 'resize' || gesture.kind === 'rotate') editor.endTransaction()
+    if (gesture.kind === 'draw') editor.setTool('select')
+    setGesture(null); setGuides([])
   }
 
-  const wheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!event.ctrlKey && !event.metaKey) return
-    event.preventDefault()
-    setZoom(zoom * (event.deltaY > 0 ? 0.9 : 1.1))
-  }
+  const wheel = (event: WheelEvent<HTMLDivElement>) => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); editor.setZoom(editor.zoom * (event.deltaY > 0 ? .9 : 1.1)) } }
+  const context = (event: React.MouseEvent, element?: EdonElement) => { event.preventDefault(); event.stopPropagation(); if (element) { const id = element.parentId ?? element.id; if (!editor.selectionIds.includes(id)) editor.select(id) } const rect = viewportRef.current?.getBoundingClientRect(); if (rect) setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top }) }
+  const drop = (event: DragEvent) => { event.preventDefault(); const files = [...event.dataTransfer.files].filter((file) => file.type.startsWith('image/')); const point = pointInArtboard(event.clientX, event.clientY); if (!point) return; void Promise.all(files.map((file, index) => imageElementFromFile(file, editor.page, { x: point.x + index * 20, y: point.y + index * 20 }))).then((elements) => elements.forEach(editor.addElement)) }
 
-  const cursor = gesture?.kind === 'pan' ? 'grabbing' : tool === 'hand' || spacePressed ? 'grab' : DRAWABLE_TOOLS.includes(tool as ElementType) ? 'crosshair' : 'default'
-  const drawRect = gesture?.kind === 'draw' ? normalizeRect(gesture.start, gesture.current) : null
+  const cursor = gesture?.kind === 'pan' ? 'grabbing' : editor.tool === 'hand' || spacePressed ? 'grab' : DRAWABLE_TOOLS.includes(editor.tool as ElementType) ? 'crosshair' : 'default'
+  const preview = gesture?.kind === 'draw' || gesture?.kind === 'marquee' ? normalizedRect(gesture.start, gesture.current) : null
+  const elementMap = new Map(editor.page.elements.map((element) => [element.id, element]))
 
-  return (
-    <section className="canvas-viewport" ref={viewportRef} style={{ cursor }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onWheel={wheel}>
-      <div className="canvas-ruler canvas-ruler-x" /><div className="canvas-ruler canvas-ruler-y" />
-      <div className="canvas-stage" style={{ width: page.width * zoom, height: page.height * zoom, transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))` }}>
-        <div ref={artboardRef} className="canvas-artboard" style={{ width: page.width, height: page.height, background: page.background, transform: `scale(${zoom})` }}>
-          {page.elements.map((element) => element.visible && <CanvasElement key={element.id} element={element} selected={element.id === selectedId} zoom={zoom} onPointerDown={elementPointerDown} onResizePointerDown={resizePointerDown} />)}
-          {drawRect && <div className={`draw-preview draw-${gesture?.kind === 'draw' ? gesture.type : ''}`} style={{ left: drawRect.x, top: drawRect.y, width: drawRect.width, height: drawRect.height, borderWidth: 1 / zoom }} />}
-        </div>
+  return <section className="canvas-viewport" ref={viewportRef} style={{ cursor }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onWheel={wheel} onContextMenu={(event) => context(event)} onDragOver={(event) => { if ([...event.dataTransfer.items].some((item) => item.type.startsWith('image/'))) event.preventDefault() }} onDrop={drop}>
+    <div className="canvas-ruler canvas-ruler-x" /><div className="canvas-ruler canvas-ruler-y" />
+    <div className="canvas-stage" style={{ width: editor.page.width * editor.zoom, height: editor.page.height * editor.zoom, transform: `translate(calc(-50% + ${editor.pan.x}px), calc(-50% + ${editor.pan.y}px))` }}>
+      <div ref={artboardRef} className="canvas-artboard" style={{ width: editor.page.width, height: editor.page.height, background: editor.page.background, transform: `scale(${editor.zoom})` }}>
+        {editor.page.elements.map((element) => isHierarchyVisible(element, elementMap) && <CanvasElement key={element.id} element={isHierarchyLocked(element, elementMap) ? { ...element, locked: true } : element} selected={editor.selectionIds.includes(element.id) || Boolean(element.parentId && editor.selectionIds.includes(element.parentId))} editingText={editingTextId === element.id} onPointerDown={elementPointerDown} onContextMenu={context} onBeginTextEdit={setEditingTextId} onTextEdit={(id, text, height) => { editor.updateElement(id, { text, height }); setEditingTextId(null) }} />)}
+        <SelectionOverlay elements={editor.selectedElements} zoom={editor.zoom} onHandleDown={handlePointerDown} />
+        {preview && <div className={`${gesture?.kind === 'marquee' ? 'marquee-preview' : `draw-preview draw-${gesture?.kind === 'draw' ? gesture.type : ''}`}`} style={{ left: preview.x, top: preview.y, width: preview.width, height: preview.height, borderWidth: 1 / editor.zoom }} />}
+        {guides.map((guide, index) => <i key={`${guide.axis}-${guide.value}-${index}`} className={`snap-guide guide-${guide.axis}`} style={guide.axis === 'x' ? { left: guide.value, width: 1 / editor.zoom } : { top: guide.value, height: 1 / editor.zoom }} />)}
       </div>
-      <div className="canvas-status"><span>{tool === 'select' ? <MousePointer2 size={12} /> : tool === 'hand' ? <Move size={12} /> : <Crosshair size={12} />}{tool}</span><span>{page.width} × {page.height}</span></div>
-    </section>
-  )
+    </div>
+    {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} />}
+    <div className="canvas-status"><span>{editor.tool === 'select' ? <MousePointer2 size={12} /> : editor.tool === 'hand' ? <Move size={12} /> : <Crosshair size={12} />}{editor.tool}</span><span>{editor.page.width} × {editor.page.height}</span>{editor.selectionIds.length > 1 && <span>{editor.selectionIds.length} selected</span>}</div>
+  </section>
 }
 
-function CanvasElement({ element, selected, zoom, onPointerDown, onResizePointerDown }: { element: EdonElement; selected: boolean; zoom: number; onPointerDown: (event: ReactPointerEvent, element: EdonElement) => void; onResizePointerDown: (event: ReactPointerEvent) => void }) {
-  const style: CSSProperties = {
-    left: element.x,
-    top: element.y,
-    width: element.width,
-    height: element.height,
-    opacity: element.opacity,
-    transform: `rotate(${element.rotation}deg)`,
-    background: element.type === 'image' ? undefined : element.fill,
-    border: `${element.strokeWidth}px solid ${element.stroke}`,
-    borderRadius: element.type === 'ellipse' ? '50%' : element.cornerRadius,
-    color: element.fill,
+function createDrawnElement(gesture: Extract<Gesture, { kind: 'draw' }>, add: (element: EdonElement) => void) {
+  if (gesture.type === 'line' || gesture.type === 'arrow') {
+    const dx = gesture.current.x - gesture.start.x; const dy = gesture.current.y - gesture.start.y; const length = Math.hypot(dx, dy)
+    if (length > 3) add({ ...createElement(gesture.type, gesture.start.x, gesture.start.y - 12, length, 24), rotation: Math.atan2(dy, dx) * 180 / Math.PI })
+    return
   }
-  return <div className={`canvas-element type-${element.type} ${selected ? 'is-selected' : ''} ${element.locked ? 'is-locked' : ''}`} style={style} onPointerDown={(event) => onPointerDown(event, element)}>
-    {element.type === 'text' && <span style={{ fontFamily: element.fontFamily, fontSize: element.fontSize, fontWeight: element.fontWeight, textAlign: element.textAlign, lineHeight: element.lineHeight, letterSpacing: element.letterSpacing }}>{element.text}</span>}
-    {element.type === 'image' && element.imageUrl && <img src={element.imageUrl} alt="" draggable={false} />}
-    {selected && <div className="selection-outline" style={{ borderWidth: 1 / zoom }}><i className="handle nw" style={handleStyle(zoom)} /><i className="handle ne" style={handleStyle(zoom)} /><i className="handle sw" style={handleStyle(zoom)} /><i className="handle se" style={handleStyle(zoom)} onPointerDown={onResizePointerDown} /></div>}
-  </div>
+  const box = normalizedRect(gesture.start, gesture.current)
+  if (box.width > 3 && box.height > 3) add(createElement(gesture.type, box.x, box.y, box.width, box.height))
 }
 
-const handleStyle = (zoom: number): CSSProperties => ({ width: 8 / zoom, height: 8 / zoom, borderWidth: 1 / zoom })
-const normalizeRect = (a: Point, b: Point) => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) })
+function resizedBounds(bounds: Bounds, handle: Exclude<ResizeHandle, 'rotate'>, dx: number, dy: number, constrain: boolean, centered: boolean): Bounds {
+  let left = bounds.x; let top = bounds.y; let right = bounds.right; let bottom = bounds.bottom
+  if (handle.includes('w')) left += dx; if (handle.includes('e')) right += dx; if (handle.includes('n')) top += dy; if (handle.includes('s')) bottom += dy
+  if (centered) { if (handle.includes('w')) right -= dx; if (handle.includes('e')) left -= dx; if (handle.includes('n')) bottom -= dy; if (handle.includes('s')) top -= dy }
+  if (constrain && handle.length === 2) {
+    const ratio = bounds.width / Math.max(1, bounds.height); const width = right - left; const height = bottom - top
+    if (Math.abs(width - bounds.width) > Math.abs(height - bounds.height)) { const nextHeight = width / ratio; if (handle.includes('n')) top = bottom - nextHeight; else bottom = top + nextHeight }
+    else { const nextWidth = height * ratio; if (handle.includes('w')) left = right - nextWidth; else right = left + nextWidth }
+  }
+  if (right - left < 4) { if (handle.includes('w')) left = right - 4; else right = left + 4 }
+  if (bottom - top < 4) { if (handle.includes('n')) top = bottom - 4; else bottom = top + 4 }
+  return { x: left, y: top, width: right - left, height: bottom - top, right, bottom, centerX: (left + right) / 2, centerY: (top + bottom) / 2 }
+}
+
+function snapMove(elements: EdonElement[], movingIds: string[], bounds: Bounds, dx: number, dy: number, tolerance: number, pageWidth: number, pageHeight: number): { dx: number; dy: number; guides: Guide[] } {
+  const ignored = new Set(descendantsOf(elements, movingIds).map((element) => element.id)); const guides: Guide[] = []
+  const xTargets = [0, pageWidth / 2, pageWidth, ...elements.filter((element) => !ignored.has(element.id) && element.visible).flatMap((element) => [element.x, element.x + element.width / 2, element.x + element.width])]
+  const yTargets = [0, pageHeight / 2, pageHeight, ...elements.filter((element) => !ignored.has(element.id) && element.visible).flatMap((element) => [element.y, element.y + element.height / 2, element.y + element.height])]
+  const movedX = [bounds.x + dx, bounds.centerX + dx, bounds.right + dx]; const movedY = [bounds.y + dy, bounds.centerY + dy, bounds.bottom + dy]
+  const snapX = closestSnap(movedX, xTargets, tolerance); const snapY = closestSnap(movedY, yTargets, tolerance)
+  if (snapX) { dx += snapX.delta; guides.push({ axis: 'x', value: snapX.target }) }
+  if (snapY) { dy += snapY.delta; guides.push({ axis: 'y', value: snapY.target }) }
+  return { dx, dy, guides }
+}
+
+function closestSnap(values: number[], targets: number[], tolerance: number): { delta: number; target: number } | null { let best: { delta: number; target: number } | null = null; for (const value of values) for (const target of targets) { const delta = target - value; if (Math.abs(delta) <= tolerance && (!best || Math.abs(delta) < Math.abs(best.delta))) best = { delta, target } } return best }
+function angleFromCenter(clientX: number, clientY: number, bounds: Bounds, artboard: HTMLDivElement | null, zoom: number): number { const rect = artboard?.getBoundingClientRect(); if (!rect) return 0; const centerX = rect.left + bounds.centerX * zoom; const centerY = rect.top + bounds.centerY * zoom; return Math.atan2(clientY - centerY, clientX - centerX) * 180 / Math.PI + 90 }
+function normalizedRect(a: Point, b: Point) { return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) } }
+function intersects(box: { x: number; y: number; width: number; height: number }, element: EdonElement) { return element.x < box.x + box.width && element.x + element.width > box.x && element.y < box.y + box.height && element.y + element.height > box.y }
+function isTyping(target: EventTarget | null) { return target instanceof HTMLElement && target.matches('input, textarea, [contenteditable="true"]') }
+function isHierarchyVisible(element: EdonElement, elements: Map<string, EdonElement>): boolean { let current: EdonElement | undefined = element; while (current) { if (!current.visible) return false; current = current.parentId ? elements.get(current.parentId) : undefined } return true }
+function isHierarchyLocked(element: EdonElement, elements: Map<string, EdonElement>): boolean { let current: EdonElement | undefined = element; while (current) { if (current.locked) return true; current = current.parentId ? elements.get(current.parentId) : undefined } return false }

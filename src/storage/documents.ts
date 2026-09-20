@@ -1,4 +1,4 @@
-import type { EdonDocument } from '../model/document'
+import { migrateDocument, type EdonDocument } from '../model/document'
 
 const STORAGE_KEY = 'edon.documents.v1'
 
@@ -7,7 +7,7 @@ export function loadDocuments(): EdonDocument[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed as EdonDocument[] : []
+    return Array.isArray(parsed) ? parsed.map(migrateDocument).filter((document): document is EdonDocument => document !== null) : []
   } catch {
     return []
   }
