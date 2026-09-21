@@ -1,12 +1,15 @@
 import type { EdonDocument, EdonElement, EdonPage } from '../model/document'
 import { polygonPoints } from './rendering'
+import { descendantsOf } from './geometry'
+import { flattenRenderOrder } from './scene-tree'
 
 export type ArtworkFormat = 'png' | 'jpeg' | 'webp' | 'svg'
 export interface ExportOptions { format: ArtworkFormat; scale: 1 | 2 | 4; transparent: boolean; selectionIds?: string[] }
 
 export async function exportArtwork(document: EdonDocument, options: ExportOptions): Promise<void> {
   const page = document.pages.find((item) => item.id === document.activePageId) ?? document.pages[0]
-  const elements = page.elements.filter((element) => element.visible && element.includeInExport !== false && (!options.selectionIds?.length || options.selectionIds.includes(element.id)))
+  const selected = options.selectionIds?.length ? new Set(descendantsOf(page.elements, options.selectionIds).map((element) => element.id)) : null
+  const elements = flattenRenderOrder(page.elements).filter((element) => hierarchyVisible(page.elements, element) && element.includeInExport !== false && (!selected || selected.has(element.id)))
   const scope = exportScope(page, elements, Boolean(options.selectionIds?.length))
   const svg = serializeArtwork(page, elements, scope, options.transparent)
   if (options.format === 'svg') return download(new Blob([svg], { type: 'image/svg+xml' }), `${slug(document.name)}.svg`)
@@ -28,7 +31,7 @@ export async function exportArtwork(document: EdonDocument, options: ExportOptio
 }
 
 export function serializeArtwork(page: EdonPage, elements: EdonElement[], scope = { x: 0, y: 0, width: page.width, height: page.height }, transparent = false): string {
-  const content = elements.filter((element) => element.type !== 'group').map((element) => serializeElement(element, scope.x, scope.y)).join('')
+  const included = new Set(elements.map((element) => element.id)); const content = flattenRenderOrder(page.elements).filter((element) => included.has(element.id)).map((element) => serializeElement(element, scope.x, scope.y)).join('')
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${scope.width}" height="${scope.height}" viewBox="0 0 ${scope.width} ${scope.height}">${transparent ? '' : `<rect width="100%" height="100%" fill="${page.background}"/>`}${content}</svg>`
 }
 
@@ -59,3 +62,4 @@ const loadImage = (url: string) => new Promise<HTMLImageElement>((resolve, rejec
 const download = (blob: Blob, name: string) => { const url = URL.createObjectURL(blob); const anchor = window.document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000) }
 const slug = (value: string) => value.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'edon-artwork'
 const escapeXml = (value: string) => value.replace(/[<>&"']/g, (character) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[character]!)
+function hierarchyVisible(elements: EdonElement[], element: EdonElement) { let current: EdonElement | undefined = element; while (current) { if (!current.visible) return false; current = current.parentId ? elements.find((item) => item.id === current?.parentId) : undefined } return true }

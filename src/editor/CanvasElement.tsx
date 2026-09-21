@@ -1,31 +1,33 @@
 import { memo, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import type { EdonElement, GradientStop } from '../model/document'
 import { baseElementStyle, cssPaint, elementFilter, maskClipPath, polygonPoints } from './rendering'
+import { registerAlphaImage } from './alpha-hit-test'
 
 interface CanvasElementProps {
   element: EdonElement
   selected: boolean
   editingText: boolean
   silhouette: boolean
+  hidden?: boolean
   onPointerDown: (event: ReactPointerEvent, element: EdonElement) => void
   onContextMenu: (event: React.MouseEvent, element: EdonElement) => void
-  onTextEdit: (id: string, text: string, height: number) => void
+  onTextEdit: (id: string, text: string, width: number, height: number) => void
   onBeginTextEdit: (id: string) => void
   onBeginVectorEdit: (id: string) => void
 }
 
-export const CanvasElement = memo(function CanvasElement({ element, selected, editingText, silhouette, onPointerDown, onContextMenu, onTextEdit, onBeginTextEdit, onBeginVectorEdit }: CanvasElementProps) {
+export const CanvasElement = memo(function CanvasElement({ element, selected, editingText, silhouette, hidden, onPointerDown, onContextMenu, onTextEdit, onBeginTextEdit, onBeginVectorEdit }: CanvasElementProps) {
   if (element.type === 'group') return null
   const paint = silhouette ? '#050506' : cssPaint(element.fillPaint)
-  const style: CSSProperties = { ...baseElementStyle(element), filter: silhouette ? undefined : elementFilter(element), clipPath: maskClipPath(element), zIndex: selected ? 2 : undefined }
-  const common = { className: `canvas-element type-${element.type} ${selected ? 'is-selected' : ''} ${element.locked ? 'is-locked' : ''} ${element.reference ? 'is-reference' : ''}`, style, onPointerDown: (event: ReactPointerEvent) => onPointerDown(event, element), onContextMenu: (event: React.MouseEvent) => onContextMenu(event, element) }
+  const style: CSSProperties = { ...baseElementStyle(element), filter: silhouette ? undefined : elementFilter(element), clipPath: maskClipPath(element), visibility: hidden ? 'hidden' : undefined }
+  const common = { 'data-element-id': element.id, className: `canvas-element type-${element.type} ${selected ? 'is-selected' : ''} ${element.locked ? 'is-locked' : ''} ${element.reference ? 'is-reference' : ''}`, style, onPointerDown: (event: ReactPointerEvent) => onPointerDown(event, element), onContextMenu: (event: React.MouseEvent) => onContextMenu(event, element) }
 
   if (element.type === 'text') return <div {...common} onDoubleClick={(event) => { event.stopPropagation(); onBeginTextEdit(element.id) }}>
     <span
       contentEditable={editingText}
       suppressContentEditableWarning
       onPointerDown={(event) => editingText && event.stopPropagation()}
-      onBlur={(event) => onTextEdit(element.id, event.currentTarget.textContent ?? '', Math.max(element.height, event.currentTarget.scrollHeight))}
+      onBlur={(event) => onTextEdit(element.id, event.currentTarget.textContent ?? '', Math.max(1, event.currentTarget.scrollWidth), Math.max(1, event.currentTarget.scrollHeight))}
       style={{ fontFamily: element.fontFamily, fontSize: element.fontSize, fontWeight: element.fontWeight, fontStyle: element.italic ? 'italic' : 'normal', textDecoration: element.underline ? 'underline' : 'none', textAlign: element.textAlign, lineHeight: element.lineHeight, letterSpacing: element.letterSpacing, color: silhouette ? '#050506' : element.fill, justifyContent: verticalJustify(element.verticalAlign), background: !silhouette && element.fillPaint.type !== 'solid' ? paint : undefined, WebkitBackgroundClip: !silhouette && element.fillPaint.type !== 'solid' ? 'text' : undefined, WebkitTextFillColor: !silhouette && element.fillPaint.type !== 'solid' ? 'transparent' : undefined }}
     >{element.text}</span>
   </div>
@@ -33,7 +35,7 @@ export const CanvasElement = memo(function CanvasElement({ element, selected, ed
   if (element.type === 'image' || element.type === 'raster') {
     const crop = element.crop ?? { x: 0, y: 0, width: 1, height: 1 }
     return <div {...common} style={{ ...style, overflow: element.mask || crop.width < 1 || crop.height < 1 ? 'hidden' : 'visible' }}>
-      {element.imageUrl && <img src={element.imageUrl} alt="" draggable={false} style={{ position: 'absolute', width: `${100 / crop.width}%`, height: `${100 / crop.height}%`, left: `${-crop.x / crop.width * 100}%`, top: `${-crop.y / crop.height * 100}%`, objectFit: element.type === 'raster' ? 'fill' : 'cover', imageRendering: element.type === 'raster' ? 'pixelated' : 'auto' }} />}
+      {element.imageUrl && <img src={element.imageUrl} alt="" draggable={false} onLoad={(event) => registerAlphaImage(element.imageUrl!, event.currentTarget)} style={{ position: 'absolute', width: `${100 / crop.width}%`, height: `${100 / crop.height}%`, left: `${-crop.x / crop.width * 100}%`, top: `${-crop.y / crop.height * 100}%`, objectFit: element.type === 'raster' ? 'fill' : 'cover', imageRendering: element.type === 'raster' ? 'pixelated' : 'auto' }} />}
     </div>
   }
 

@@ -1,5 +1,6 @@
 import { createElement, createId, type EdonDocument, type EdonElement } from '../model/document'
 import { boundsOf, descendantsOf, rootSelection, translateElements } from './geometry'
+import { uniqueLayerName } from './scene-tree'
 
 export type LayerOrder = 'forward' | 'backward' | 'front' | 'back'
 export type AlignMode = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
@@ -23,7 +24,8 @@ export function duplicateSelection(document: EdonDocument, ids: string[], offset
     const roots = rootSelection(elements, ids)
     const source = descendantsOf(elements, roots.map((element) => element.id))
     const idMap = new Map(source.map((element) => [element.id, createId(element.type)]))
-    const copies = source.map((element) => ({ ...element, id: idMap.get(element.id)!, name: `${element.name} copy`, parentId: element.parentId ? idMap.get(element.parentId) ?? element.parentId : null, x: element.x + offset, y: element.y + offset }))
+    const copies: EdonElement[] = []
+    for (const element of source) copies.push({ ...element, id: idMap.get(element.id)!, name: uniqueLayerName([...elements, ...copies], element.name), parentId: element.parentId ? idMap.get(element.parentId) ?? element.parentId : null, x: element.x + offset, y: element.y + offset })
     nextSelection = roots.map((element) => idMap.get(element.id)!)
     return [...elements, ...copies]
   })
@@ -48,6 +50,7 @@ export function groupSelection(document: EdonDocument, ids: string[]): SceneResu
     if (roots.length < 2) return elements
     const bounds = boundsOf(roots)
     const group = createElement('group', bounds.x, bounds.y, bounds.width, bounds.height)
+    group.name = uniqueLayerName(elements, 'Group')
     group.parentId = roots.every((element) => element.parentId === roots[0].parentId) ? roots[0].parentId : null
     groupId = group.id
     const selected = new Set(roots.map((element) => element.id))
@@ -70,16 +73,22 @@ export function ungroupSelection(document: EdonDocument, ids: string[]): SceneRe
 
 export function reorderSelection(document: EdonDocument, ids: string[], mode: LayerOrder): EdonDocument {
   return updateElements(document, (elements) => {
-    const targetIds = new Set(descendantsOf(elements, ids).map((element) => element.id))
-    const selected = elements.filter((element) => targetIds.has(element.id))
-    const rest = elements.filter((element) => !targetIds.has(element.id))
-    if (mode === 'front') return [...rest, ...selected]
-    if (mode === 'back') return [...selected, ...rest]
-    const next = [...elements]
-    if (mode === 'forward') {
-      for (let index = next.length - 2; index >= 0; index--) if (targetIds.has(next[index].id) && !targetIds.has(next[index + 1].id)) [next[index], next[index + 1]] = [next[index + 1], next[index]]
-    } else {
-      for (let index = 1; index < next.length; index++) if (targetIds.has(next[index].id) && !targetIds.has(next[index - 1].id)) [next[index], next[index - 1]] = [next[index - 1], next[index]]
+    let next = [...elements]
+    const roots = rootSelection(elements, ids); const parents = new Set(roots.map((element) => element.parentId))
+    for (const parentId of parents) {
+      const selectedIds = new Set(roots.filter((element) => element.parentId === parentId).map((element) => element.id))
+      const siblings = next.filter((element) => element.parentId === parentId)
+      const selected = siblings.filter((element) => selectedIds.has(element.id)); const rest = siblings.filter((element) => !selectedIds.has(element.id))
+      let ordered = siblings
+      if (mode === 'front') ordered = [...rest, ...selected]
+      else if (mode === 'back') ordered = [...selected, ...rest]
+      else {
+        ordered = [...siblings]
+        if (mode === 'forward') for (let index = ordered.length - 2; index >= 0; index -= 1) if (selectedIds.has(ordered[index].id) && !selectedIds.has(ordered[index + 1].id)) [ordered[index], ordered[index + 1]] = [ordered[index + 1], ordered[index]]
+        else for (let index = 1; index < ordered.length; index += 1) if (selectedIds.has(ordered[index].id) && !selectedIds.has(ordered[index - 1].id)) [ordered[index], ordered[index - 1]] = [ordered[index - 1], ordered[index]]
+      }
+      let cursor = 0
+      next = next.map((element) => element.parentId === parentId ? ordered[cursor++] : element)
     }
     return next
   })

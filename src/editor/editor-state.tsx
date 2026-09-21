@@ -2,6 +2,7 @@ import { createContext, useContext, useReducer, useRef, type ReactNode } from 'r
 import { createId, getActivePage, type BrushPreset, type EdonDocument, type EdonElement, type ElementType, type PaletteColor } from '../model/document'
 import { alignSelection, copyPayload, deleteSelection, distributeSelection, duplicateSelection, groupSelection, pastePayload, renameElement, reorderSelection, ungroupSelection, updateElements, type AlignMode, type DistributeMode, type LayerOrder, type SceneResult } from './scene-commands'
 import { booleanElements, canBoolean, type BooleanOperation } from './vector-boolean'
+import { insertAboveSelection, moveLayer } from './scene-tree'
 
 export type EditorTool = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'image' | 'hand' | 'pencil' | 'pen' | 'brush' | 'eraser' | 'eyedropper' | 'fill'
 export type GapClosing = 'off' | 'small' | 'medium' | 'large'
@@ -93,6 +94,7 @@ interface EditorContextValue extends EditorState {
   renameDocument: (name: string) => void
   renameLayer: (id: string, name: string) => void
   addElement: (element: EdonElement) => void
+  removeElement: (id: string) => void
   updateElement: (id: string, patch: Partial<EdonElement>, live?: boolean) => void
   updateSelected: (patch: Partial<EdonElement>, live?: boolean) => void
   mutateElements: (updater: (elements: EdonElement[]) => EdonElement[], live?: boolean, label?: string) => void
@@ -104,7 +106,7 @@ interface EditorContextValue extends EditorState {
   group: () => void
   ungroup: () => void
   reorder: (mode: LayerOrder) => void
-  reorderLayer: (id: string, targetId: string) => void
+  reorderLayer: (id: string, targetId: string, position: 'above' | 'below') => void
   align: (mode: AlignMode) => void
   distribute: (mode: DistributeMode) => void
   toggleSelection: (property: 'visible' | 'locked') => void
@@ -160,7 +162,8 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
     togglePanel: (panel) => dispatch({ type: 'TOGGLE_PANEL', panel }),
     renameDocument: (name) => commit({ ...state.document, name }, 'Rename document'),
     renameLayer: (id, name) => commit(renameElement(state.document, id, name), 'Rename layer'),
-    addElement: (element) => commit(updateElements(state.document, (elements) => [...elements, element]), `Create ${element.name}`, [element.id]),
+    addElement: (element) => commit(updateElements(state.document, (elements) => insertAboveSelection(elements, element, state.selectionIds)), `Create ${element.name}`, [element.id]),
+    removeElement: (id) => commit(updateElements(state.document, (elements) => elements.filter((element) => element.id !== id)), 'Remove empty layer', state.selectionIds.filter((selectionId) => selectionId !== id)),
     updateElement: (id, patch, live = false) => dispatch({ type: live ? 'LIVE_DOCUMENT' : 'COMMIT_DOCUMENT', document: updateElements(state.document, (elements) => elements.map((element) => element.id === id ? { ...element, ...patch } : element)), ...(live ? {} : { label: 'Edit properties' }) } as Action),
     updateSelected: (patch, live = false) => dispatch({ type: live ? 'LIVE_DOCUMENT' : 'COMMIT_DOCUMENT', document: updateElements(state.document, (elements) => elements.map((element) => state.selectionIds.includes(element.id) ? { ...element, ...patch } : element)), ...(live ? {} : { label: 'Edit selection' }) } as Action),
     mutateElements: (updater, live = false, label = 'Transform selection') => dispatch({ type: live ? 'LIVE_DOCUMENT' : 'COMMIT_DOCUMENT', document: updateElements(state.document, updater), ...(live ? {} : { label }) } as Action),
@@ -172,7 +175,7 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
     group: () => commitResult(groupSelection(state.document, state.selectionIds), 'Group selection'),
     ungroup: () => commitResult(ungroupSelection(state.document, state.selectionIds), 'Ungroup selection'),
     reorder: (mode) => commit(reorderSelection(state.document, state.selectionIds, mode), `Move ${mode}`),
-    reorderLayer: (id, targetId) => commit(updateElements(state.document, (elements) => { const next = [...elements]; const from = next.findIndex((element) => element.id === id); const to = next.findIndex((element) => element.id === targetId); if (from < 0 || to < 0 || from === to) return elements; const [item] = next.splice(from, 1); next.splice(to, 0, item); return next }), 'Reorder layers'),
+    reorderLayer: (id, targetId, position) => commit(updateElements(state.document, (elements) => moveLayer(elements, id, targetId, position)), 'Reorder layers'),
     align: (mode) => commit(alignSelection(state.document, state.selectionIds, mode), `Align ${mode}`),
     distribute: (mode) => commit(distributeSelection(state.document, state.selectionIds, mode), `Distribute ${mode}`),
     toggleSelection: (property) => { if (!selectedElements.length) return; const next = !selectedElements.every((element) => element[property]); commit(updateElements(state.document, (elements) => elements.map((element) => state.selectionIds.includes(element.id) ? { ...element, [property]: next } : element)), `${next ? 'Enable' : 'Disable'} ${property}`, property === 'visible' && !next ? [] : undefined) },

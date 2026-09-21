@@ -2,14 +2,36 @@ import type { EdonElement } from '../model/document'
 
 export interface Bounds { x: number; y: number; width: number; height: number; right: number; bottom: number; centerX: number; centerY: number }
 
+export function visualRect(element: EdonElement): Bounds {
+  const stroke = Math.max(0, element.strokeWidth * Math.max(Math.abs(element.scaleX), Math.abs(element.scaleY)))
+  const scaleX = Math.abs(element.scaleX); const scaleY = Math.abs(element.scaleY)
+  const baseX = element.x + Math.min(0, element.width * element.scaleX)
+  const baseY = element.y + Math.min(0, element.height * element.scaleY)
+  const width = element.width * scaleX; const height = element.height * scaleY
+  if (element.type === 'line' || element.type === 'arrow') return makeBounds(baseX - stroke / 2, baseY + height / 2 - Math.max(1, stroke) / 2, width + stroke, Math.max(1, stroke))
+  const inset = stroke / 2
+  return makeBounds(baseX - inset, baseY - inset, width + stroke, height + stroke)
+}
+
+export function elementBounds(element: EdonElement): Bounds {
+  const rect = visualRect(element)
+  if (!element.rotation) return rect
+  const centerX = element.x + element.width * element.scaleX / 2
+  const centerY = element.y + element.height * element.scaleY / 2
+  const radians = element.rotation * Math.PI / 180; const cosine = Math.cos(radians); const sine = Math.sin(radians)
+  const corners = [[rect.x, rect.y], [rect.right, rect.y], [rect.right, rect.bottom], [rect.x, rect.bottom]].map(([x, y]) => ({ x: centerX + (x - centerX) * cosine - (y - centerY) * sine, y: centerY + (x - centerX) * sine + (y - centerY) * cosine }))
+  const x = Math.min(...corners.map((point) => point.x)); const y = Math.min(...corners.map((point) => point.y)); const right = Math.max(...corners.map((point) => point.x)); const bottom = Math.max(...corners.map((point) => point.y))
+  return makeBounds(x, y, right - x, bottom - y)
+}
+
 export function boundsOf(elements: EdonElement[]): Bounds {
   if (!elements.length) return { x: 0, y: 0, width: 0, height: 0, right: 0, bottom: 0, centerX: 0, centerY: 0 }
-  const x = Math.min(...elements.map((element) => element.x))
-  const y = Math.min(...elements.map((element) => element.y))
-  const right = Math.max(...elements.map((element) => element.x + element.width * element.scaleX))
-  const bottom = Math.max(...elements.map((element) => element.y + element.height * element.scaleY))
-  return { x, y, width: right - x, height: bottom - y, right, bottom, centerX: (x + right) / 2, centerY: (y + bottom) / 2 }
+  const bounds = elements.map(elementBounds)
+  const x = Math.min(...bounds.map((item) => item.x)); const y = Math.min(...bounds.map((item) => item.y)); const right = Math.max(...bounds.map((item) => item.right)); const bottom = Math.max(...bounds.map((item) => item.bottom))
+  return makeBounds(x, y, right - x, bottom - y)
 }
+
+const makeBounds = (x: number, y: number, width: number, height: number): Bounds => ({ x, y, width, height, right: x + width, bottom: y + height, centerX: x + width / 2, centerY: y + height / 2 })
 
 export function descendantsOf(elements: EdonElement[], ids: string[]): EdonElement[] {
   const collected = new Set(ids)

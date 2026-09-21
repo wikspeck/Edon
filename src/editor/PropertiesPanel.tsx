@@ -2,6 +2,7 @@ import { AlignCenter, AlignHorizontalDistributeCenter, AlignLeft, AlignRight, Al
 import { createId, DEFAULT_ADJUSTMENTS, type EdonElement, type ElementEffect, type FillPaint, type ImageAdjustments } from '../model/document'
 import { useEditor } from './editor-state'
 import { ColorControl } from './ColorPicker'
+import { boundsOf, descendantsOf } from './geometry'
 
 function NumberField({ label, value, onChange, icon }: { label: string; value: number; onChange: (value: number) => void; icon?: React.ReactNode }) {
   return <label className="property-input"><span>{icon ?? label}</span><input aria-label={label} type="number" value={Number.isInteger(value) ? value : Number(value.toFixed(2))} onChange={(event) => onChange(Number(event.target.value))} /></label>
@@ -18,7 +19,8 @@ export function PropertiesPanel() {
 function GroupProperties({ element }: { element: EdonElement }) {
   const editor = useEditor()
   const childCount = editor.page.elements.filter((item) => item.parentId === element.id).length
-  return <div className="properties-content"><PropertySection title="Group" open><dl className="group-summary"><div><dt>Children</dt><dd>{childCount}</dd></div><div><dt>Position</dt><dd>{Math.round(element.x)}, {Math.round(element.y)}</dd></div><div><dt>Size</dt><dd>{Math.round(element.width)} × {Math.round(element.height)}</dd></div></dl><Action label="Ungroup" onClick={editor.ungroup}><Ungroup size={14} /> Ungroup</Action></PropertySection><section className="property-section property-danger"><button onClick={editor.removeSelected}><Trash2 size={14} /> Delete group <kbd>Del</kbd></button></section></div>
+  const bounds = boundsOf(descendantsOf(editor.page.elements, [element.id]).filter((item) => item.type !== 'group'))
+  return <div className="properties-content"><PropertySection title="Group" open><dl className="group-summary"><div><dt>Children</dt><dd>{childCount}</dd></div><div><dt>Position</dt><dd>{Math.round(bounds.x)}, {Math.round(bounds.y)}</dd></div><div><dt>Size</dt><dd>{Math.round(bounds.width)} × {Math.round(bounds.height)}</dd></div></dl><Action label="Ungroup" onClick={editor.ungroup}><Ungroup size={14} /> Ungroup</Action></PropertySection><section className="property-section property-danger"><button onClick={editor.removeSelected}><Trash2 size={14} /> Delete group <kbd>Del</kbd></button></section></div>
 }
 
 function MultipleProperties() {

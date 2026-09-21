@@ -4,12 +4,14 @@ import { createElement, type EdonElement, type ElementType, type VectorPoint } f
 import { CanvasElement } from './CanvasElement'
 import { ContextMenu } from './ContextMenu'
 import { DRAWABLE_TOOLS, useEditor } from './editor-state'
-import { boundsOf, descendantsOf, type Bounds } from './geometry'
+import { boundsOf, descendantsOf, elementBounds, type Bounds } from './geometry'
 import { imageElementFromFile } from './image-import'
 import { SelectionOverlay, type ResizeHandle } from './SelectionOverlay'
 import { VectorEditOverlay } from './VectorEditOverlay'
 import { fitPath, nodesToPath, pointsToNodes } from './vector-path'
-import { createRasterStroke, paintEnclosedRegion, sampleVisibleColor } from './raster-engine'
+import { createRasterStroke, drawRasterLayer, paintEnclosedRegion, renderRasterStroke, sampleVisibleColor } from './raster-engine'
+import { flattenRenderOrder } from './scene-tree'
+import { alphaHitTest } from './alpha-hit-test'
 
 type Point = { x: number; y: number }
 type Guide = { axis: 'x' | 'y'; value: number }
@@ -21,12 +23,15 @@ type Gesture =
   | { kind: 'rotate'; startAngle: number; targets: EdonElement[]; selectionBounds: Bounds }
   | { kind: 'pan'; start: Point; origin: Point }
   | { kind: 'pencil'; points: Point[] }
-  | { kind: 'raster'; points: Point[]; erase: boolean }
+  | { kind: 'raster'; erase: boolean; targetId: string | null }
 
 export function Canvas() {
   const editor = useEditor()
   const viewportRef = useRef<HTMLDivElement>(null)
   const artboardRef = useRef<HTMLDivElement>(null)
+  const liveRasterRef = useRef<HTMLCanvasElement>(null)
+  const liveRasterBaseRef = useRef<HTMLCanvasElement | null>(null)
+  const rasterPointsRef = useRef<Point[]>([])
   const lastTextPointer = useRef<{ id: string; time: number } | null>(null)
   const lastPathPointer = useRef<{ id: string; time: number } | null>(null)
   const [gesture, setGesture] = useState<Gesture | null>(null)
@@ -77,6 +82,25 @@ export function Canvas() {
   }
 
   const capture = (event: ReactPointerEvent) => viewportRef.current?.setPointerCapture(event.pointerId)
+  const startViewportPan = (event: ReactPointerEvent) => { event.preventDefault(); event.stopPropagation(); capture(event); setContextMenu(null); setGesture({ kind: 'pan', start: { x: event.clientX, y: event.clientY }, origin: editor.pan }) }
+  const pointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => { if (event.button === 1) startViewportPan(event) }
+  const startRasterGesture = (event: ReactPointerEvent, point: Point, erase: boolean) => {
+    const existing = editor.selectedElement?.type === 'raster' ? editor.selectedElement : erase ? [...flattenRenderOrder(editor.page.elements)].reverse().find((element) => element.type === 'raster') ?? null : null
+    const canvas = liveRasterRef.current; if (!canvas) return
+    canvas.width = editor.page.width; canvas.height = editor.page.height
+    const base = document.createElement('canvas'); base.width = editor.page.width; base.height = editor.page.height
+    if (existing?.imageUrl) {
+      const image = artboardRef.current?.querySelector<HTMLImageElement>(`[data-element-id="${existing.id}"] img`)
+      if (image?.complete) drawRasterLayer(base.getContext('2d')!, image, existing)
+    }
+    liveRasterBaseRef.current = base; rasterPointsRef.current = [point]
+    const context = canvas.getContext('2d')!; context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(base, 0, 0); renderRasterStroke(context, rasterPointsRef.current, editor.artSettings, erase)
+    capture(event); setGesture({ kind: 'raster', erase, targetId: existing?.id ?? null })
+  }
+  const redrawLiveRaster = (erase: boolean) => {
+    const canvas = liveRasterRef.current; const base = liveRasterBaseRef.current; if (!canvas || !base) return
+    const context = canvas.getContext('2d')!; context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(base, 0, 0); renderRasterStroke(context, rasterPointsRef.current, editor.artSettings, erase)
+  }
   const runBucket = async (point: Point) => {
     setNotice('Finding enclosed region…')
     const result = await paintEnclosedRegion(editor.page, point, editor.artSettings)
@@ -87,15 +111,15 @@ export function Canvas() {
   const sampleAt = async (point: Point) => { const color = await sampleVisibleColor(editor.page, point); editor.rememberColor(color); setNotice(`Sampled ${color.toUpperCase()}`); window.setTimeout(() => setNotice(null), 1400) }
   const pointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     setContextMenu(null)
-    if (event.button === 2) return
-    if (event.button === 1 || editor.tool === 'hand' || spacePressed) {
+    if (event.button !== 0) return
+    if (editor.tool === 'hand' || spacePressed) {
       capture(event); setGesture({ kind: 'pan', start: { x: event.clientX, y: event.clientY }, origin: editor.pan }); return
     }
     const point = pointInArtboard(event.clientX, event.clientY)
     if (!point) { editor.select(null); return }
     if (editor.tool === 'fill') { void runBucket(point); return }
     if (editor.tool === 'eyedropper') { void sampleAt(point); return }
-    if (editor.tool === 'brush' || editor.tool === 'eraser') { capture(event); setGesture({ kind: 'raster', points: [point], erase: editor.tool === 'eraser' }); return }
+    if (editor.tool === 'brush' || editor.tool === 'eraser') { startRasterGesture(event, point, editor.tool === 'eraser'); return }
     if (editor.tool === 'pencil') { capture(event); setGesture({ kind: 'pencil', points: [point] }); return }
     if (editor.tool === 'pen') {
       const first = penPoints[0]
@@ -109,11 +133,12 @@ export function Canvas() {
     }
     if (!DRAWABLE_TOOLS.includes(editor.tool as ElementType)) return
     capture(event)
-    if (editor.tool === 'text') { editor.addElement(createElement('text', point.x, point.y)); editor.setTool('select'); return }
+    if (editor.tool === 'text') { const element = createElement('text', point.x, point.y); const context = document.createElement('canvas').getContext('2d')!; context.font = `${element.fontWeight} ${element.fontSize}px ${element.fontFamily}`; element.width = Math.ceil(context.measureText(element.text ?? '').width) + 2; element.height = Math.ceil((element.fontSize ?? 16) * (element.lineHeight ?? 1.2)); editor.addElement(element); editor.setTool('select'); return }
     setGesture({ kind: 'draw', start: point, current: point, type: editor.tool as Exclude<ElementType, 'group' | 'image' | 'path' | 'text'> })
   }
 
   const elementPointerDown = (event: ReactPointerEvent, element: EdonElement) => {
+    if (event.button !== 0) return
     if (element.locked || editingTextId === element.id) return
     if (editor.tool === 'eyedropper') {
       event.stopPropagation()
@@ -127,6 +152,8 @@ export function Canvas() {
       return
     }
     if (editor.tool !== 'select') return
+    const hitPoint = pointInArtboard(event.clientX, event.clientY)
+    if (hitPoint && !alphaHitTest(element, hitPoint)) return
     event.stopPropagation(); setContextMenu(null)
     const selectableId = !event.ctrlKey && !event.metaKey && element.parentId ? element.parentId : element.id
     if (element.type === 'text') {
@@ -151,13 +178,15 @@ export function Canvas() {
       ids = duplicateIds
     }
     capture(event); editor.beginTransaction('Move selection')
-    setGesture({ kind: 'move', start: { x: event.clientX, y: event.clientY }, ids, targets: targets.map((target) => ({ ...target })), selectionBounds: boundsOf(targets.filter((target) => ids.includes(target.id))) })
+    const geometry = targets.filter((target) => target.type !== 'group')
+    setGesture({ kind: 'move', start: { x: event.clientX, y: event.clientY }, ids, targets: targets.map((target) => ({ ...target })), selectionBounds: boundsOf(geometry) })
   }
 
   const handlePointerDown = (event: ReactPointerEvent, handle: ResizeHandle) => {
+    if (event.button !== 0) return
     event.stopPropagation(); capture(event)
     const targets = descendantsOf(editor.page.elements, editor.selectionIds).map((target) => ({ ...target }))
-    const selectionBounds = boundsOf(editor.selectedElements)
+    const selectionBounds = boundsOf(targets.filter((target) => target.type !== 'group'))
     editor.beginTransaction(handle === 'rotate' ? 'Rotate selection' : 'Resize selection')
     if (handle === 'rotate') {
       setGesture({ kind: 'rotate', startAngle: angleFromCenter(event.clientX, event.clientY, selectionBounds, artboardRef.current, editor.zoom), targets, selectionBounds })
@@ -179,8 +208,8 @@ export function Canvas() {
     }
     if (gesture.kind === 'raster') {
       const point = pointInArtboard(event.clientX, event.clientY); if (!point) return
-      const previous = gesture.points.at(-1)!; if (Math.hypot(point.x - previous.x, point.y - previous.y) < .75 / editor.zoom) return
-      setGesture({ ...gesture, points: [...gesture.points, point] }); return
+      const previous = rasterPointsRef.current.at(-1)!; if (Math.hypot(point.x - previous.x, point.y - previous.y) < .75 / editor.zoom) return
+      rasterPointsRef.current.push(point); redrawLiveRaster(gesture.erase); return
     }
     if (gesture.kind === 'draw' || gesture.kind === 'marquee') { const point = pointInArtboard(event.clientX, event.clientY); if (point) setGesture({ ...gesture, current: point }); return }
     if (gesture.kind === 'move') {
@@ -217,14 +246,22 @@ export function Canvas() {
     if (viewportRef.current?.hasPointerCapture(event.pointerId)) viewportRef.current.releasePointerCapture(event.pointerId)
     if (gesture.kind === 'draw') createDrawnElement(gesture, editor.addElement)
     else if (gesture.kind === 'pencil' && gesture.points.length > 1) addPencilPath(gesture.points, editor)
-    else if (gesture.kind === 'raster' && gesture.points.length) {
-      const existing = editor.selectedElement?.type === 'raster' ? editor.selectedElement : gesture.erase ? [...editor.page.elements].reverse().find((element) => element.type === 'raster') ?? null : null
-      void createRasterStroke(editor.page, existing, gesture.points, editor.artSettings, gesture.erase).then((element) => { if (existing) editor.updateElement(existing.id, { imageUrl: element.imageUrl }); else editor.addElement(element) })
+    else if (gesture.kind === 'raster' && rasterPointsRef.current.length) {
+      const existing = gesture.targetId ? editor.page.elements.find((element) => element.id === gesture.targetId) ?? null : null
+      const points = [...rasterPointsRef.current]
+      void createRasterStroke(editor.page, existing, points, editor.artSettings, gesture.erase).then((element) => {
+        if (!element && existing) editor.removeElement(existing.id)
+        else if (element && existing) editor.updateElement(existing.id, { imageUrl: element.imageUrl, x: element.x, y: element.y, width: element.width, height: element.height, rotation: 0, scaleX: 1, scaleY: 1 })
+        else if (element) editor.addElement(element)
+      }).finally(() => { rasterPointsRef.current = []; liveRasterBaseRef.current = null; const canvas = liveRasterRef.current; canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height); setGesture(null); setGuides([]) })
+      return
     }
     else if (gesture.kind === 'marquee') {
       const box = normalizedRect(gesture.start, gesture.current)
-      const hits = editor.page.elements.filter((element) => element.type !== 'group' && element.visible && !element.locked && intersects(box, element)).map((element) => element.parentId ?? element.id)
-      editor.selectMany(gesture.additive ? [...editor.selectionIds, ...hits] : hits)
+      if (box.width > 2 / editor.zoom || box.height > 2 / editor.zoom) {
+        const hits = editor.page.elements.filter((element) => element.type !== 'group' && element.visible && !element.locked && intersects(box, element)).map((element) => element.parentId ?? element.id)
+        editor.selectMany(gesture.additive ? [...editor.selectionIds, ...hits] : hits)
+      }
     } else if (gesture.kind === 'move' || gesture.kind === 'resize' || gesture.kind === 'rotate') editor.endTransaction()
     if (gesture.kind === 'draw') editor.setTool('select')
     setGesture(null); setGuides([])
@@ -235,18 +272,23 @@ export function Canvas() {
 
   const cursor = gesture?.kind === 'pan' ? 'grabbing' : editor.tool === 'hand' || spacePressed ? 'grab' : DRAWABLE_TOOLS.includes(editor.tool as ElementType) || ['pencil', 'pen', 'brush', 'eraser', 'eyedropper', 'fill'].includes(editor.tool) ? 'crosshair' : 'default'
   const preview = gesture?.kind === 'draw' || gesture?.kind === 'marquee' ? normalizedRect(gesture.start, gesture.current) : null
+  const drawingElement = gesture?.kind === 'draw' ? makeDrawnElement(gesture) : null
+  const pencilPreview = gesture?.kind === 'pencil' && gesture.points.length > 1 ? fitPath(gesture.points, editor.artSettings.smoothing, editor.artSettings.simplify) : null
   const elementMap = new Map(editor.page.elements.map((element) => [element.id, element]))
+  const renderOrder = flattenRenderOrder(editor.page.elements)
+  const selectionGeometry = descendantsOf(editor.page.elements, editor.selectionIds).filter((element) => element.type !== 'group')
 
-  return <section className="canvas-viewport" ref={viewportRef} style={{ cursor }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onContextMenu={(event) => context(event)} onDragOver={(event) => { if ([...event.dataTransfer.items].some((item) => item.type.startsWith('image/'))) event.preventDefault() }} onDrop={drop}>
+  return <section className="canvas-viewport" ref={viewportRef} style={{ cursor }} onPointerDownCapture={pointerDownCapture} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onContextMenu={(event) => context(event)} onDragOver={(event) => { if ([...event.dataTransfer.items].some((item) => item.type.startsWith('image/'))) event.preventDefault() }} onDrop={drop}>
     <div className="canvas-ruler canvas-ruler-x" /><div className="canvas-ruler canvas-ruler-y" />
     <div className="canvas-stage" style={{ width: editor.page.width * editor.zoom, height: editor.page.height * editor.zoom, transform: `translate(calc(-50% + ${editor.pan.x}px), calc(-50% + ${editor.pan.y}px))` }}>
       <div ref={artboardRef} className={`canvas-artboard ${editor.silhouettePreview ? 'is-silhouette-preview' : ''}`} style={{ width: editor.page.width, height: editor.page.height, background: editor.page.background, transform: `scale(${editor.zoom})` }}>
-        {editor.page.elements.map((element) => isHierarchyVisible(element, elementMap) && <CanvasElement key={element.id} element={isHierarchyLocked(element, elementMap) ? { ...element, locked: true } : element} selected={editor.selectionIds.includes(element.id) || Boolean(element.parentId && editor.selectionIds.includes(element.parentId))} editingText={editingTextId === element.id} silhouette={editor.silhouettePreview} onPointerDown={elementPointerDown} onContextMenu={context} onBeginTextEdit={setEditingTextId} onBeginVectorEdit={(id) => { editor.select(id); editor.setVectorEdit(id) }} onTextEdit={(id, text, height) => { editor.updateElement(id, { text, height }); setEditingTextId(null) }} />)}
-        {!editor.vectorEditId && editor.tool === 'select' && <SelectionOverlay elements={editor.selectedElements} zoom={editor.zoom} onHandleDown={handlePointerDown} />}
+        {renderOrder.map((element) => isHierarchyVisible(element, elementMap) && <CanvasElement key={element.id} element={isHierarchyLocked(element, elementMap) ? { ...element, locked: true } : element} selected={editor.selectionIds.includes(element.id) || Boolean(element.parentId && editor.selectionIds.includes(element.parentId))} editingText={editingTextId === element.id} silhouette={editor.silhouettePreview} hidden={gesture?.kind === 'raster' && gesture.targetId === element.id} onPointerDown={elementPointerDown} onContextMenu={context} onBeginTextEdit={setEditingTextId} onBeginVectorEdit={(id) => { editor.select(id); editor.setVectorEdit(id) }} onTextEdit={(id, text, width, height) => { editor.updateElement(id, { text, width, height }); setEditingTextId(null) }} />)}
+        <canvas ref={liveRasterRef} className={`live-raster-canvas ${gesture?.kind === 'raster' ? 'is-active' : ''}`} />
+        {drawingElement && <CanvasElement element={drawingElement} selected={false} editingText={false} silhouette={false} onPointerDown={() => {}} onContextMenu={() => {}} onBeginTextEdit={() => {}} onBeginVectorEdit={() => {}} onTextEdit={() => {}} />}
+        {!editor.vectorEditId && editor.tool === 'select' && <SelectionOverlay elements={selectionGeometry} zoom={editor.zoom} onHandleDown={handlePointerDown} />}
         {editor.vectorEditId && editor.page.elements.find((element) => element.id === editor.vectorEditId)?.vectorNodes && (() => { const element = editor.page.elements.find((item) => item.id === editor.vectorEditId)!; return <VectorEditOverlay element={element} zoom={editor.zoom} onStart={() => editor.beginTransaction('Edit vector path')} onChange={(nodes) => editor.updateElement(element.id, { vectorNodes: nodes, pathData: nodesToPath(nodes, element.closed) }, true)} onEnd={editor.endTransaction} /> })()}
-        {preview && <div className={`${gesture?.kind === 'marquee' ? 'marquee-preview' : `draw-preview draw-${gesture?.kind === 'draw' ? gesture.type : ''}`}`} style={{ left: preview.x, top: preview.y, width: preview.width, height: preview.height, borderWidth: 1 / editor.zoom }} />}
-        {gesture?.kind === 'pencil' && <svg className="path-drawing-preview" width="100%" height="100%"><polyline points={gesture.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={editor.artSettings.color} strokeWidth={editor.artSettings.size} strokeLinecap="round" strokeLinejoin="round" /></svg>}
-        {gesture?.kind === 'raster' && <svg className={`path-drawing-preview ${editor.artSettings.antiAlias ? '' : 'is-pixel'}`} width="100%" height="100%"><polyline points={gesture.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={gesture.erase ? '#ffffff88' : editor.artSettings.color} strokeWidth={editor.artSettings.size} strokeLinecap={editor.artSettings.antiAlias ? 'round' : 'square'} strokeLinejoin="round" /></svg>}
+        {preview && gesture?.kind === 'marquee' && <div className="marquee-preview" style={{ left: preview.x, top: preview.y, width: preview.width, height: preview.height, borderWidth: 1 / editor.zoom }} />}
+        {pencilPreview && <svg className="path-drawing-preview" width="100%" height="100%"><path transform={`translate(${pencilPreview.x} ${pencilPreview.y})`} d={pencilPreview.pathData} fill="none" stroke={editor.artSettings.color} strokeOpacity={editor.artSettings.opacity} strokeWidth={editor.artSettings.size} strokeLinecap="round" strokeLinejoin="round" /></svg>}
         {penPoints.length > 0 && <svg className="path-drawing-preview" width="100%" height="100%"><polyline points={penPoints.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={editor.artSettings.color} strokeWidth={Math.max(1, editor.artSettings.size)} strokeLinecap="round" />{penPoints.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r={5 / editor.zoom} />)}</svg>}
         {guides.map((guide, index) => <i key={`${guide.axis}-${guide.value}-${index}`} className={`snap-guide guide-${guide.axis}`} style={guide.axis === 'x' ? { left: guide.value, width: 1 / editor.zoom } : { top: guide.value, height: 1 / editor.zoom }} />)}
       </div>
@@ -260,19 +302,23 @@ export function Canvas() {
 }
 
 function createDrawnElement(gesture: Extract<Gesture, { kind: 'draw' }>, add: (element: EdonElement) => void) {
+  const element = makeDrawnElement(gesture)
+  if (element) add(element)
+}
+
+function makeDrawnElement(gesture: Extract<Gesture, { kind: 'draw' }>): EdonElement | null {
   if (gesture.type === 'line' || gesture.type === 'arrow') {
     const dx = gesture.current.x - gesture.start.x; const dy = gesture.current.y - gesture.start.y; const length = Math.hypot(dx, dy)
-    if (length > 3) add({ ...createElement(gesture.type, gesture.start.x, gesture.start.y - 12, length, 24), rotation: Math.atan2(dy, dx) * 180 / Math.PI })
-    return
+    return length > 3 ? { ...createElement(gesture.type, gesture.start.x, gesture.start.y - 12, length, 24), rotation: Math.atan2(dy, dx) * 180 / Math.PI } : null
   }
   const box = normalizedRect(gesture.start, gesture.current)
-  if (box.width > 3 && box.height > 3) add(createElement(gesture.type, box.x, box.y, box.width, box.height))
+  return box.width > 3 && box.height > 3 ? createElement(gesture.type, box.x, box.y, box.width, box.height) : null
 }
 
 function addPencilPath(points: VectorPoint[], editor: ReturnType<typeof useEditor>) {
   const fitted = fitPath(points, editor.artSettings.smoothing, editor.artSettings.simplify)
   const element = createElement('path', fitted.x, fitted.y, fitted.width, fitted.height)
-  element.name = `${editor.artSettings.brushPreset[0].toUpperCase()}${editor.artSettings.brushPreset.slice(1)} stroke`
+  element.name = 'Pencil Path'
   element.fill = '#00000000'
   element.fillPaint = { type: 'solid', color: '#00000000' }
   element.stroke = editor.artSettings.color
@@ -337,7 +383,7 @@ function snapMove(elements: EdonElement[], movingIds: string[], bounds: Bounds, 
 function closestSnap(values: number[], targets: number[], tolerance: number): { delta: number; target: number } | null { let best: { delta: number; target: number } | null = null; for (const value of values) for (const target of targets) { const delta = target - value; if (Math.abs(delta) <= tolerance && (!best || Math.abs(delta) < Math.abs(best.delta))) best = { delta, target } } return best }
 function angleFromCenter(clientX: number, clientY: number, bounds: Bounds, artboard: HTMLDivElement | null, zoom: number): number { const rect = artboard?.getBoundingClientRect(); if (!rect) return 0; const centerX = rect.left + bounds.centerX * zoom; const centerY = rect.top + bounds.centerY * zoom; return Math.atan2(clientY - centerY, clientX - centerX) * 180 / Math.PI + 90 }
 function normalizedRect(a: Point, b: Point) { return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) } }
-function intersects(box: { x: number; y: number; width: number; height: number }, element: EdonElement) { return element.x < box.x + box.width && element.x + element.width > box.x && element.y < box.y + box.height && element.y + element.height > box.y }
+function intersects(box: { x: number; y: number; width: number; height: number }, element: EdonElement) { const bounds = elementBounds(element); return bounds.x < box.x + box.width && bounds.right > box.x && bounds.y < box.y + box.height && bounds.bottom > box.y }
 function isTyping(target: EventTarget | null) { return target instanceof HTMLElement && target.matches('input, textarea, [contenteditable="true"]') }
 function isHierarchyVisible(element: EdonElement, elements: Map<string, EdonElement>): boolean { let current: EdonElement | undefined = element; while (current) { if (!current.visible) return false; current = current.parentId ? elements.get(current.parentId) : undefined } return true }
 function isHierarchyLocked(element: EdonElement, elements: Map<string, EdonElement>): boolean { let current: EdonElement | undefined = element; while (current) { if (current.locked) return true; current = current.parentId ? elements.get(current.parentId) : undefined } return false }
