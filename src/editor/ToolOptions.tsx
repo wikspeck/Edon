@@ -11,7 +11,7 @@ export function ToolOptions() {
     if (!live) editor.rememberColor(color)
   }
   const range = (label: string, key: 'size' | 'opacity' | 'hardness' | 'smoothing' | 'stabilization' | 'fillTolerance', min: number, max: number) => <label className="tool-option-range"><span>{label}</span><input type="range" min={min} max={max} value={key === 'opacity' ? settings[key] * 100 : settings[key]} onChange={(event) => editor.setArtSettings({ [key]: key === 'opacity' ? Number(event.target.value) / 100 : Number(event.target.value) })} /><output>{Math.round((key === 'opacity' ? settings[key] * 100 : settings[key]))}</output></label>
-  const antiAlias = <label className="tool-option-toggle"><span>Anti-alias</span><button className={settings.antiAlias ? 'is-active' : ''} onClick={() => editor.setArtSettings({ antiAlias: !settings.antiAlias })}>{settings.antiAlias ? 'On' : 'Off'}</button></label>
+  const antiAlias = <label className="tool-option-toggle"><span>Pixel mode</span><button className={!settings.antiAlias ? 'is-active' : ''} onClick={() => editor.setArtSettings({ antiAlias: !settings.antiAlias })}>{settings.antiAlias ? 'Off' : 'On'}</button></label>
   return <div className="tool-options" aria-label={`${TOOL_LABELS[editor.tool]} options`}>
     <div className="active-tool-name"><strong>{TOOL_LABELS[editor.tool]}</strong>{TOOL_SHORTCUTS[editor.tool] && <kbd>{TOOL_SHORTCUTS[editor.tool]}</kbd>}</div>
     {['pencil', 'brush', 'fill', 'pen'].includes(editor.tool) && <ColorControl value={settings.color} onChange={setColor} />}

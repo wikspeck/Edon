@@ -94,12 +94,12 @@ export function Canvas() {
       if (image?.complete) drawRasterLayer(base.getContext('2d')!, image, existing)
     }
     liveRasterBaseRef.current = base; rasterPointsRef.current = [point]
-    const context = canvas.getContext('2d')!; context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(base, 0, 0); renderRasterStroke(context, rasterPointsRef.current, editor.artSettings, erase)
+    const context = canvas.getContext('2d')!; context.imageSmoothingEnabled = editor.artSettings.antiAlias; context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(base, 0, 0); renderRasterStroke(context, rasterPointsRef.current, editor.artSettings, erase)
     capture(event); setGesture({ kind: 'raster', erase, targetId: existing?.id ?? null })
   }
   const redrawLiveRaster = (erase: boolean) => {
     const canvas = liveRasterRef.current; const base = liveRasterBaseRef.current; if (!canvas || !base) return
-    const context = canvas.getContext('2d')!; context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(base, 0, 0); renderRasterStroke(context, rasterPointsRef.current, editor.artSettings, erase)
+    const context = canvas.getContext('2d')!; context.imageSmoothingEnabled = editor.artSettings.antiAlias; context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(base, 0, 0); renderRasterStroke(context, rasterPointsRef.current, editor.artSettings, erase)
   }
   const runBucket = async (point: Point) => {
     setNotice('Finding enclosed region…')
@@ -267,7 +267,7 @@ export function Canvas() {
     setGesture(null); setGuides([])
   }
 
-  const context = (event: React.MouseEvent, element?: EdonElement) => { event.preventDefault(); event.stopPropagation(); if (element) { const id = element.parentId ?? element.id; if (!editor.selectionIds.includes(id)) editor.select(id) } const rect = viewportRef.current?.getBoundingClientRect(); if (rect) setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top }) }
+  const context = (event: React.MouseEvent, element?: EdonElement) => { event.preventDefault(); event.stopPropagation(); if (element) { const id = element.parentId ?? element.id; if (!editor.selectionIds.includes(id)) editor.select(id) } setContextMenu({ x: event.clientX, y: event.clientY }) }
   const drop = (event: DragEvent) => { event.preventDefault(); const files = [...event.dataTransfer.files].filter((file) => file.type.startsWith('image/')); const point = pointInArtboard(event.clientX, event.clientY); if (!point) return; void Promise.all(files.map((file, index) => imageElementFromFile(file, editor.page, { x: point.x + index * 20, y: point.y + index * 20 }))).then((elements) => elements.forEach(editor.addElement)) }
 
   const cursor = gesture?.kind === 'pan' ? 'grabbing' : editor.tool === 'hand' || spacePressed ? 'grab' : DRAWABLE_TOOLS.includes(editor.tool as ElementType) || ['pencil', 'pen', 'brush', 'eraser', 'eyedropper', 'fill'].includes(editor.tool) ? 'crosshair' : 'default'
@@ -283,7 +283,7 @@ export function Canvas() {
     <div className="canvas-stage" style={{ width: editor.page.width * editor.zoom, height: editor.page.height * editor.zoom, transform: `translate(calc(-50% + ${editor.pan.x}px), calc(-50% + ${editor.pan.y}px))` }}>
       <div ref={artboardRef} className={`canvas-artboard ${editor.silhouettePreview ? 'is-silhouette-preview' : ''}`} style={{ width: editor.page.width, height: editor.page.height, background: editor.page.background, transform: `scale(${editor.zoom})` }}>
         {renderOrder.map((element) => isHierarchyVisible(element, elementMap) && <CanvasElement key={element.id} element={isHierarchyLocked(element, elementMap) ? { ...element, locked: true } : element} selected={editor.selectionIds.includes(element.id) || Boolean(element.parentId && editor.selectionIds.includes(element.parentId))} editingText={editingTextId === element.id} silhouette={editor.silhouettePreview} hidden={gesture?.kind === 'raster' && gesture.targetId === element.id} onPointerDown={elementPointerDown} onContextMenu={context} onBeginTextEdit={setEditingTextId} onBeginVectorEdit={(id) => { editor.select(id); editor.setVectorEdit(id) }} onTextEdit={(id, text, width, height) => { editor.updateElement(id, { text, width, height }); setEditingTextId(null) }} />)}
-        <canvas ref={liveRasterRef} className={`live-raster-canvas ${gesture?.kind === 'raster' ? 'is-active' : ''}`} />
+        <canvas ref={liveRasterRef} className={`live-raster-canvas ${gesture?.kind === 'raster' ? 'is-active' : ''} ${editor.artSettings.antiAlias ? '' : 'is-pixel-mode'}`} />
         {drawingElement && <CanvasElement element={drawingElement} selected={false} editingText={false} silhouette={false} onPointerDown={() => {}} onContextMenu={() => {}} onBeginTextEdit={() => {}} onBeginVectorEdit={() => {}} onTextEdit={() => {}} />}
         {!editor.vectorEditId && editor.tool === 'select' && <SelectionOverlay elements={selectionGeometry} zoom={editor.zoom} onHandleDown={handlePointerDown} />}
         {editor.vectorEditId && editor.page.elements.find((element) => element.id === editor.vectorEditId)?.vectorNodes && (() => { const element = editor.page.elements.find((item) => item.id === editor.vectorEditId)!; return <VectorEditOverlay element={element} zoom={editor.zoom} onStart={() => editor.beginTransaction('Edit vector path')} onChange={(nodes) => editor.updateElement(element.id, { vectorNodes: nodes, pathData: nodesToPath(nodes, element.closed) }, true)} onEnd={editor.endTransaction} /> })()}

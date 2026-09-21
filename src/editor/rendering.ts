@@ -23,18 +23,28 @@ export function elementFilter(element: EdonElement): string | undefined {
   for (const effect of element.effects) {
     if (!effect.enabled) continue
     if (effect.type === 'gaussian-blur') filters.push(`blur(${effect.radius}px)`)
-    if (effect.type === 'drop-shadow') filters.push(`drop-shadow(${effect.offsetX}px ${effect.offsetY}px ${effect.blur}px ${withOpacity(effect.color, effect.opacity)})`)
+    if (effect.type === 'drop-shadow') {
+      addSpread(filters, effect.offsetX, effect.offsetY, effect.blur, effect.spread, withOpacity(effect.color, effect.opacity))
+    }
     if (effect.type === 'stylized-shadow') {
       const radians = effect.angle * Math.PI / 180
       filters.push(`drop-shadow(${Math.cos(radians) * effect.distance}px ${Math.sin(radians) * effect.distance}px 0 ${withOpacity(effect.color, effect.opacity)})`)
     }
-    if (effect.type === 'glow') filters.push(`drop-shadow(0 0 ${effect.blur}px ${withOpacity(effect.color, effect.opacity)})`)
+    if (effect.type === 'glow') {
+      const passes = Math.max(1, Math.round(effect.strength))
+      for (let pass = 0; pass < passes; pass += 1) addSpread(filters, 0, 0, effect.blur, effect.spread, withOpacity(effect.color, Math.min(1, effect.opacity / Math.sqrt(passes))))
+    }
     if (effect.type === 'outline') {
       const color = withOpacity(effect.color, effect.opacity)
       for (const [x, y] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-.7, -.7], [.7, -.7], [-.7, .7], [.7, .7]]) filters.push(`drop-shadow(${x * effect.width}px ${y * effect.width}px 0 ${color})`)
     }
   }
   return filters.length ? filters.join(' ') : undefined
+}
+
+function addSpread(filters: string[], offsetX: number, offsetY: number, blur: number, spread: number, color: string) {
+  if (spread <= 0) { filters.push(`drop-shadow(${offsetX}px ${offsetY}px ${blur}px ${color})`); return }
+  for (const [x, y] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-.7, -.7], [.7, -.7], [-.7, .7], [.7, .7]]) filters.push(`drop-shadow(${offsetX + x * spread}px ${offsetY + y * spread}px ${blur}px ${color})`)
 }
 
 export function maskClipPath(element: EdonElement): string | undefined {

@@ -13,9 +13,9 @@ export type FillPaint =
   | { type: 'radial-gradient'; stops: GradientStop[] }
 
 export type ElementEffect =
-  | { id: string; type: 'drop-shadow'; enabled: boolean; color: string; opacity: number; offsetX: number; offsetY: number; blur: number }
+  | { id: string; type: 'drop-shadow'; enabled: boolean; color: string; opacity: number; offsetX: number; offsetY: number; blur: number; spread: number }
   | { id: string; type: 'outline'; enabled: boolean; color: string; opacity: number; width: number }
-  | { id: string; type: 'glow'; enabled: boolean; color: string; opacity: number; blur: number }
+  | { id: string; type: 'glow'; enabled: boolean; color: string; opacity: number; blur: number; spread: number; strength: number }
   | { id: string; type: 'gaussian-blur'; enabled: boolean; radius: number }
   | { id: string; type: 'stylized-shadow'; enabled: boolean; color: string; opacity: number; angle: number; distance: number }
 
@@ -142,7 +142,13 @@ export function getActivePage(document: EdonDocument): EdonPage { return documen
 export function normalizeElement(element: Partial<EdonElement> & Pick<EdonElement, 'id' | 'type' | 'name' | 'x' | 'y' | 'width' | 'height'>): EdonElement {
   const base = createElement(element.type, element.x, element.y, element.width, element.height)
   const radius = element.cornerRadius ?? base.cornerRadius
-  return { ...base, ...element, parentId: element.parentId ?? null, scaleX: element.scaleX ?? 1, scaleY: element.scaleY ?? 1, blendMode: element.blendMode ?? 'normal', fillPaint: element.fillPaint ?? solidPaint(element.fill ?? base.fill), strokeDash: element.strokeDash ?? [], strokeOpacity: element.strokeOpacity ?? 1, strokeCap: element.strokeCap ?? 'round', strokeJoin: element.strokeJoin ?? 'round', cornerRadii: element.cornerRadii ?? [radius, radius, radius, radius], effects: element.effects ?? [], imperfection: element.imperfection ?? 0, imperfectionSeed: element.imperfectionSeed ?? 1, reference: element.reference ?? false, includeInExport: element.includeInExport ?? true, adjustments: element.type === 'image' ? { ...DEFAULT_ADJUSTMENTS, ...element.adjustments } : element.adjustments, crop: element.type === 'image' ? element.crop ?? { x: 0, y: 0, width: 1, height: 1 } : element.crop }
+  return { ...base, ...element, parentId: element.parentId ?? null, scaleX: element.scaleX ?? 1, scaleY: element.scaleY ?? 1, blendMode: element.blendMode ?? 'normal', fillPaint: element.fillPaint ?? solidPaint(element.fill ?? base.fill), strokeDash: element.strokeDash ?? [], strokeOpacity: element.strokeOpacity ?? 1, strokeCap: element.strokeCap ?? 'round', strokeJoin: element.strokeJoin ?? 'round', cornerRadii: element.cornerRadii ?? [radius, radius, radius, radius], effects: (element.effects ?? []).map(normalizeEffect), imperfection: element.imperfection ?? 0, imperfectionSeed: element.imperfectionSeed ?? 1, reference: element.reference ?? false, includeInExport: element.includeInExport ?? true, adjustments: element.type === 'image' ? { ...DEFAULT_ADJUSTMENTS, ...element.adjustments } : element.adjustments, crop: element.type === 'image' ? element.crop ?? { x: 0, y: 0, width: 1, height: 1 } : element.crop }
+}
+
+function normalizeEffect(effect: ElementEffect): ElementEffect {
+  if (effect.type === 'drop-shadow') return { ...effect, spread: effect.spread ?? 0 }
+  if (effect.type === 'glow') return { ...effect, spread: effect.spread ?? 0, strength: effect.strength ?? 1 }
+  return effect
 }
 
 export function migrateDocument(input: unknown): EdonDocument | null {

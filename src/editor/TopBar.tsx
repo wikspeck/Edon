@@ -7,11 +7,13 @@ import { useState } from 'react'
 import { ExportDialog } from './ExportDialog'
 import { COMMAND_SHORTCUTS, TOOL_SHORTCUTS } from './shortcuts'
 import { PixelPreview } from './PixelPreview'
+import { PaletteWindow } from './PaletteWindow'
 
 export function TopBar({ onBack }: { onBack: () => void }) {
   const editor = useEditor()
   const [exportOpen, setExportOpen] = useState(false)
   const [pixelPreview, setPixelPreview] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   return <><header className="editor-topbar">
     <div className="topbar-left">
       <IconButton label="Back to files" onClick={onBack}><ArrowLeft size={15} /></IconButton>
@@ -21,7 +23,7 @@ export function TopBar({ onBack }: { onBack: () => void }) {
         <details><summary>Edit</summary><div className="app-menu"><button onClick={editor.undo} disabled={!editor.past.length}>Undo <kbd>{COMMAND_SHORTCUTS.undo}</kbd></button><button onClick={editor.redo} disabled={!editor.future.length}>Redo <kbd>{COMMAND_SHORTCUTS.redo}</kbd></button><span className="menu-separator" /><button onClick={editor.cut} disabled={!editor.selectionIds.length}>Cut <kbd>{COMMAND_SHORTCUTS.cut}</kbd></button><button onClick={editor.copy} disabled={!editor.selectionIds.length}>Copy <kbd>{COMMAND_SHORTCUTS.copy}</kbd></button><button onClick={editor.paste} disabled={!editor.canPaste}>Paste <kbd>{COMMAND_SHORTCUTS.paste}</kbd></button><button onClick={() => editor.duplicate()} disabled={!editor.selectionIds.length}>Duplicate <kbd>{COMMAND_SHORTCUTS.duplicate}</kbd></button><span className="menu-separator" /><button onClick={editor.selectAll}>Select all <kbd>{COMMAND_SHORTCUTS.selectAll}</kbd></button></div></details>
         <details><summary>Tools</summary><div className="app-menu">{(['select', 'pen', 'pencil', 'brush', 'eraser', 'fill', 'eyedropper', 'text', 'rectangle', 'ellipse'] as const).map((tool) => <button key={tool} onClick={() => editor.setTool(tool)}>{tool === 'fill' ? 'Paint Bucket' : tool[0].toUpperCase() + tool.slice(1)} <kbd>{TOOL_SHORTCUTS[tool]}</kbd></button>)}</div></details>
         {editor.selectionIds.length > 0 && <details><summary>Object</summary><div className="app-menu"><button onClick={editor.group} disabled={editor.selectionIds.length < 2}>Group <kbd>Ctrl G</kbd></button><button onClick={editor.ungroup} disabled={!editor.selectedElements.some((element) => element.type === 'group')}>Ungroup <kbd>Ctrl Shift G</kbd></button><span className="menu-separator" /><button onClick={() => editor.reorder('front')}>Bring to front <kbd>Ctrl Shift ]</kbd></button><button onClick={() => editor.reorder('forward')}>Bring forward <kbd>Ctrl ]</kbd></button><button onClick={() => editor.reorder('backward')}>Send backward <kbd>Ctrl [</kbd></button><button onClick={() => editor.reorder('back')}>Send to back <kbd>Ctrl Shift [</kbd></button><span className="menu-separator" /><button onClick={editor.createShadowShape}>Create shadow shape</button><button onClick={() => editor.selectSame('type')}>Select same type</button><button onClick={() => editor.selectSame('fill')}>Select same fill</button><span className="menu-separator" /><button onClick={() => editor.toggleSelection('locked')}>{editor.selectedElements.every((element) => element.locked) ? 'Unlock' : 'Lock'} <kbd>Ctrl Shift L</kbd></button><button onClick={() => editor.toggleSelection('visible')}>Hide <kbd>Ctrl Shift H</kbd></button></div></details>}
-        <details><summary>View</summary><div className="app-menu"><button onClick={() => editor.togglePanel('left')}>{editor.leftPanelOpen ? 'Hide' : 'Show'} layers</button><button onClick={() => editor.togglePanel('right')}>{editor.rightPanelOpen ? 'Hide' : 'Show'} properties</button><button onClick={() => setPixelPreview(true)}>Pixel preview</button><button onClick={() => editor.setSilhouettePreview(!editor.silhouettePreview)}>{editor.silhouettePreview ? 'Disable' : 'Enable'} silhouette preview</button><span className="menu-separator" /><button onClick={() => editor.setZoom(1)}>Actual size <kbd>{COMMAND_SHORTCUTS.actualSize}</kbd></button><button onClick={() => editor.setZoom(.5)}>Fit canvas <kbd>{COMMAND_SHORTCUTS.fitCanvas}</kbd></button></div></details>
+        <details><summary>View</summary><div className="app-menu"><button onClick={() => editor.togglePanel('left')}>{editor.leftPanelOpen ? 'Hide' : 'Show'} layers</button><button onClick={() => editor.togglePanel('right')}>{editor.rightPanelOpen ? 'Hide' : 'Show'} properties</button><button onClick={() => setPixelPreview(true)}>Pixel preview</button><button onClick={() => setPaletteOpen(true)}>Document colors</button><button onClick={() => editor.setSilhouettePreview(!editor.silhouettePreview)}>{editor.silhouettePreview ? 'Disable' : 'Enable'} silhouette preview</button><span className="menu-separator" /><button onClick={() => editor.setZoom(1)}>Actual size <kbd>{COMMAND_SHORTCUTS.actualSize}</kbd></button><button onClick={() => editor.setZoom(.5)}>Fit canvas <kbd>{COMMAND_SHORTCUTS.fitCanvas}</kbd></button></div></details>
       </div>
     </div>
     <div className="topbar-document"><input aria-label="Document name" defaultValue={editor.document.name} key={editor.document.id} onBlur={(event) => event.target.value.trim() && event.target.value !== editor.document.name && editor.renameDocument(event.target.value.trim())} /><span className="save-indicator"><Check size={11} /> Saved locally</span></div>
@@ -33,7 +35,7 @@ export function TopBar({ onBack }: { onBack: () => void }) {
       <button className="export-button" onClick={() => setExportOpen(true)}><Download size={14} /> Export <ChevronDown size={12} /></button>
       <IconButton label="Toggle properties panel" active={editor.rightPanelOpen} onClick={() => editor.togglePanel('right')}><PanelRightClose size={15} /></IconButton>
     </div>
-  </header>{exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}{pixelPreview && <PixelPreview onClose={() => setPixelPreview(false)} />}</>
+  </header>{exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}{pixelPreview && <PixelPreview onClose={() => setPixelPreview(false)} />}{paletteOpen && <PaletteWindow onClose={() => setPaletteOpen(false)} />}</>
 }
 
 function downloadDocument(document: EdonDocument) {

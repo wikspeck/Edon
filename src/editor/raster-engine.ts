@@ -2,15 +2,16 @@ import { createElement, type EdonElement, type EdonPage, type VectorPoint } from
 import { polygonPoints } from './rendering'
 import type { ArtToolSettings, GapClosing } from './editor-state'
 import { flattenRenderOrder } from './scene-tree'
+import { alignedPixelBounds, createPixelGrid, paintPixelCells, pointToPixelCell, PIXEL_MODE_CELL_SIZE } from './pixel-grid'
 
 export interface BucketResult { element: EdonElement | null; reason?: string; pixelCount: number }
 
 export async function createRasterStroke(page: EdonPage, existing: EdonElement | null, points: VectorPoint[], settings: ArtToolSettings, erase = false): Promise<EdonElement | null> {
   const canvas = document.createElement('canvas'); canvas.width = page.width; canvas.height = page.height
-  const context = canvas.getContext('2d', { willReadFrequently: true })!
+  const context = canvas.getContext('2d', { willReadFrequently: true })!; context.imageSmoothingEnabled = settings.antiAlias
   if (existing?.imageUrl) drawRasterLayer(context, await loadImage(existing.imageUrl), existing)
   renderRasterStroke(context, points, settings, erase)
-  const cropped = cropTransparentCanvas(canvas)
+  const cropped = cropTransparentCanvas(canvas, settings.antiAlias ? 1 : PIXEL_MODE_CELL_SIZE)
   if (!cropped) return null
   const element = existing ? { ...existing } : createElement('raster', cropped.x, cropped.y, cropped.width, cropped.height)
   element.x = cropped.x; element.y = cropped.y; element.width = cropped.width; element.height = cropped.height
@@ -25,6 +26,7 @@ export function renderRasterStroke(context: CanvasRenderingContext2D, points: Ve
   if (!points.length) return
   context.save()
   context.globalCompositeOperation = erase ? 'destination-out' : 'source-over'
+  context.imageSmoothingEnabled = settings.antiAlias
   const color = parseHex(settings.color); context.fillStyle = `rgba(${color.r},${color.g},${color.b},${settings.opacity * color.a})`; context.strokeStyle = context.fillStyle
   const radius = Math.max(.5, settings.size / 2)
   if (settings.antiAlias) {
@@ -41,49 +43,54 @@ export function renderRasterStroke(context: CanvasRenderingContext2D, points: Ve
       })
     }
   } else {
-    forEachStamp(points, Math.max(1, radius * .35), (x, y) => stampHardCircle(context, Math.round(x), Math.round(y), Math.max(1, Math.round(radius))))
+    paintPixelCells(context, points, context.canvas.width, context.canvas.height, settings.size)
   }
   context.restore()
 }
 
 export function drawRasterLayer(context: CanvasRenderingContext2D, image: CanvasImageSource, element: EdonElement) {
-  context.save(); context.translate(element.x + element.width / 2, element.y + element.height / 2); context.rotate(element.rotation * Math.PI / 180); context.scale(element.scaleX, element.scaleY); context.drawImage(image, -element.width / 2, -element.height / 2, element.width, element.height); context.restore()
+  context.save(); context.imageSmoothingEnabled = false; context.translate(element.x + element.width / 2, element.y + element.height / 2); context.rotate(element.rotation * Math.PI / 180); context.scale(element.scaleX, element.scaleY); context.drawImage(image, -element.width / 2, -element.height / 2, element.width, element.height); context.restore()
 }
 
 export async function paintEnclosedRegion(page: EdonPage, point: VectorPoint, settings: ArtToolSettings): Promise<BucketResult> {
   const boundaryCanvas = document.createElement('canvas'); boundaryCanvas.width = page.width; boundaryCanvas.height = page.height
-  const context = boundaryCanvas.getContext('2d', { willReadFrequently: true })!
+  const context = boundaryCanvas.getContext('2d', { willReadFrequently: true })!; context.imageSmoothingEnabled = false
   await renderElements(context, flattenRenderOrder(page.elements).filter((element) => hierarchyVisible(page.elements, element)), false)
   const source = context.getImageData(0, 0, page.width, page.height)
+  const grid = createPixelGrid(page.width, page.height)
   const threshold = Math.max(8, 255 - settings.fillTolerance * 3)
-  let boundary: Uint8Array<ArrayBufferLike> = new Uint8Array(page.width * page.height)
-  for (let index = 0; index < boundary.length; index += 1) boundary[index] = source.data[index * 4 + 3] >= threshold ? 1 : 0
-  boundary = dilate(boundary, page.width, page.height, gapRadius(settings.gapClosing))
-  const seed = nearestOpenPixel(boundary, page.width, page.height, Math.round(point.x), Math.round(point.y))
+  let boundary: Uint8Array<ArrayBufferLike> = new Uint8Array(grid.columns * grid.rows)
+  for (let row = 0; row < grid.rows; row += 1) for (let column = 0; column < grid.columns; column += 1) {
+    let occupied = false
+    for (let y = row * grid.cellSize; y < Math.min(page.height, (row + 1) * grid.cellSize) && !occupied; y += 1) for (let x = column * grid.cellSize; x < Math.min(page.width, (column + 1) * grid.cellSize); x += 1) if (source.data[(y * page.width + x) * 4 + 3] >= threshold) { occupied = true; break }
+    boundary[row * grid.columns + column] = occupied ? 1 : 0
+  }
+  boundary = dilate(boundary, grid.columns, grid.rows, gapRadius(settings.gapClosing))
+  const target = pointToPixelCell(point, grid)
+  const seed = nearestOpenPixel(boundary, grid.columns, grid.rows, target.column, target.row)
   if (!seed) return { element: null, reason: 'No open region was found at that point.', pixelCount: 0 }
   const region = new Uint8Array(boundary.length); const queue = new Int32Array(boundary.length); let head = 0; let tail = 0; let touchesEdge = false
-  queue[tail++] = seed.y * page.width + seed.x; region[queue[0]] = 1
+  queue[tail++] = seed.y * grid.columns + seed.x; region[queue[0]] = 1
   while (head < tail) {
-    const index = queue[head++]; const x = index % page.width; const y = Math.floor(index / page.width)
-    if (x === 0 || y === 0 || x === page.width - 1 || y === page.height - 1) touchesEdge = true
-    const neighbors = [index - 1, index + 1, index - page.width, index + page.width]
+    const index = queue[head++]; const x = index % grid.columns; const y = Math.floor(index / grid.columns)
+    if (x === 0 || y === 0 || x === grid.columns - 1 || y === grid.rows - 1) touchesEdge = true
+    const neighbors = [index - 1, index + 1, index - grid.columns, index + grid.columns]
     for (const next of neighbors) {
       if (next < 0 || next >= boundary.length || region[next] || boundary[next]) continue
-      const nx = next % page.width; if (Math.abs(nx - x) > 1) continue
+      const nx = next % grid.columns; if (Math.abs(nx - x) > 1) continue
       region[next] = 1; queue[tail++] = next
     }
   }
   if (touchesEdge && settings.contiguous) return { element: null, reason: `The region is open. Increase Gap Closing or close the boundary near (${Math.round(point.x)}, ${Math.round(point.y)}).`, pixelCount: tail }
   const output = document.createElement('canvas'); output.width = page.width; output.height = page.height
-  const outputContext = output.getContext('2d')!; const image = outputContext.createImageData(page.width, page.height); const color = parseHex(settings.color)
+  const outputContext = output.getContext('2d')!; outputContext.imageSmoothingEnabled = false; const color = parseHex(settings.color)
+  outputContext.fillStyle = `rgba(${color.r},${color.g},${color.b},${settings.opacity * color.a})`
   for (let index = 0; index < region.length; index += 1) {
     if (!region[index]) continue
-    const offset = index * 4; image.data[offset] = color.r; image.data[offset + 1] = color.g; image.data[offset + 2] = color.b
-    const edge = settings.antiAlias && [index - 1, index + 1, index - page.width, index + page.width].some((neighbor) => neighbor >= 0 && neighbor < boundary.length && boundary[neighbor])
-    image.data[offset + 3] = Math.round(settings.opacity * color.a * (edge ? 176 : 255))
+    const column = index % grid.columns; const row = Math.floor(index / grid.columns)
+    outputContext.fillRect(column * grid.cellSize, row * grid.cellSize, grid.cellSize, grid.cellSize)
   }
-  outputContext.putImageData(image, 0, 0)
-  const cropped = cropTransparentCanvas(output)
+  const cropped = cropTransparentCanvas(output, grid.cellSize)
   if (!cropped) return { element: null, reason: 'The selected region contains no visible pixels.', pixelCount: 0 }
   const element = createElement('raster', cropped.x, cropped.y, cropped.width, cropped.height); element.name = 'Fill'; element.imageUrl = cropped.canvas.toDataURL('image/png')
   return { element, pixelCount: tail }
@@ -113,17 +120,17 @@ async function renderElements(context: CanvasRenderingContext2D, elements: EdonE
   }
 }
 
-const gapRadius = (gap: GapClosing) => gap === 'small' ? 4 : gap === 'medium' ? 12 : gap === 'large' ? 24 : 0
+const gapRadius = (gap: GapClosing) => gap === 'small' ? 1 : gap === 'medium' ? 3 : gap === 'large' ? 6 : 0
 function dilate(source: Uint8Array, width: number, height: number, radius: number) { if (!radius) return source; const result = new Uint8Array(source); for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) if (source[y * width + x]) for (let dy = -radius; dy <= radius; dy += 1) for (let dx = -radius; dx <= radius; dx += 1) if (dx * dx + dy * dy <= radius * radius) { const nx = x + dx; const ny = y + dy; if (nx >= 0 && ny >= 0 && nx < width && ny < height) result[ny * width + nx] = 1 } return result }
 function nearestOpenPixel(boundary: Uint8Array, width: number, height: number, x: number, y: number) { for (let radius = 0; radius <= 12; radius += 1) for (let dy = -radius; dy <= radius; dy += 1) for (let dx = -radius; dx <= radius; dx += 1) { const nx = x + dx; const ny = y + dy; if (nx >= 0 && ny >= 0 && nx < width && ny < height && !boundary[ny * width + nx]) return { x: nx, y: ny } } return null }
 function forEachStamp(points: VectorPoint[], spacing: number, draw: (x: number, y: number) => void) { draw(points[0].x, points[0].y); for (let index = 1; index < points.length; index += 1) { const a = points[index - 1]; const b = points[index]; const distance = Math.hypot(b.x - a.x, b.y - a.y); const steps = Math.max(1, Math.ceil(distance / spacing)); for (let step = 1; step <= steps; step += 1) draw(a.x + (b.x - a.x) * step / steps, a.y + (b.y - a.y) * step / steps) } }
-function stampHardCircle(context: CanvasRenderingContext2D, centerX: number, centerY: number, radius: number) { for (let y = -radius; y <= radius; y += 1) for (let x = -radius; x <= radius; x += 1) if (x * x + y * y <= radius * radius) context.fillRect(centerX + x, centerY + y, 1, 1) }
-function cropTransparentCanvas(source: HTMLCanvasElement) {
+function cropTransparentCanvas(source: HTMLCanvasElement, alignment = 1) {
   const context = source.getContext('2d', { willReadFrequently: true })!; const { data } = context.getImageData(0, 0, source.width, source.height)
   let left = source.width; let top = source.height; let right = -1; let bottom = -1
   for (let y = 0; y < source.height; y += 1) for (let x = 0; x < source.width; x += 1) if (data[(y * source.width + x) * 4 + 3]) { left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y) }
   if (right < left || bottom < top) return null
-  left = Math.max(0, left - 1); top = Math.max(0, top - 1); right = Math.min(source.width - 1, right + 1); bottom = Math.min(source.height - 1, bottom + 1)
+  const aligned = alignedPixelBounds(left, top, right, bottom, alignment)
+  left = Math.max(0, aligned.left); top = Math.max(0, aligned.top); right = Math.min(source.width - 1, aligned.right); bottom = Math.min(source.height - 1, aligned.bottom)
   const canvas = document.createElement('canvas'); canvas.width = right - left + 1; canvas.height = bottom - top + 1
   canvas.getContext('2d')!.drawImage(source, left, top, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height)
   return { canvas, x: left, y: top, width: canvas.width, height: canvas.height }

@@ -3,9 +3,12 @@ import { EditorView } from './editor/EditorView'
 import { HomeView } from './home/HomeView'
 import type { EdonDocument } from './model/document'
 import { loadDocuments, saveDocuments } from './storage/documents'
+import type { EdonProject } from './model/project'
+import { loadProjects, saveProjects } from './storage/projects'
 
 export default function App() {
   const [documents, setDocuments] = useState<EdonDocument[]>(loadDocuments)
+  const [projects, setProjects] = useState<EdonProject[]>(loadProjects)
   const [activeId, setActiveId] = useState<string | null>(null)
   const activeDocument = documents.find((document) => document.id === activeId)
 
@@ -14,10 +17,14 @@ export default function App() {
     saveDocuments(next)
   }, [])
 
-  const createDocument = (document: EdonDocument) => {
+  const createDocument = (document: EdonDocument, projectId?: string) => {
     persist([document, ...documents])
+    if (projectId) updateProjects(projects.map((project) => project.id === projectId ? { ...project, documentIds: [document.id, ...project.documentIds], updatedAt: new Date().toISOString() } : project))
     setActiveId(document.id)
   }
+
+  const updateProjects = (next: EdonProject[]) => { setProjects(next); saveProjects(next) }
+  const moveDocument = (documentId: string, projectId: string | null) => updateProjects(projects.map((project) => ({ ...project, documentIds: project.id === projectId ? [...new Set([documentId, ...project.documentIds])] : project.documentIds.filter((id) => id !== documentId), updatedAt: project.documentIds.includes(documentId) || project.id === projectId ? new Date().toISOString() : project.updatedAt })))
 
   const updateDocument = useCallback((updated: EdonDocument) => {
     setDocuments((current) => {
@@ -31,5 +38,5 @@ export default function App() {
     return <EditorView key={activeDocument.id} document={activeDocument} onChange={updateDocument} onBack={() => setActiveId(null)} />
   }
 
-  return <HomeView documents={documents} onCreate={createDocument} onOpen={(document) => setActiveId(document.id)} />
+  return <HomeView documents={documents} projects={projects} onProjectsChange={updateProjects} onMoveDocument={moveDocument} onCreate={createDocument} onOpen={(document) => setActiveId(document.id)} />
 }

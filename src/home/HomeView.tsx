@@ -1,82 +1,37 @@
-import { useState } from 'react'
-import { ArrowUpRight, FilePlus2, Folder, Grid2X2, List, Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ArrowLeft, ArrowUpRight, FilePlus2, Folder, FolderPlus, Grid2X2, List, MoreHorizontal, Pencil, Search, Trash2 } from 'lucide-react'
 import type { EdonDocument } from '../model/document'
+import { createProject, type EdonProject } from '../model/project'
 import { BrandMark } from '../ui/BrandMark'
 import { IconButton } from '../ui/IconButton'
 import { NewFileDialog } from './NewFileDialog'
+import { ProjectDialog } from './ProjectDialog'
 
-interface HomeViewProps {
-  documents: EdonDocument[]
-  onCreate: (document: EdonDocument) => void
-  onOpen: (document: EdonDocument) => void
+interface HomeViewProps { documents: EdonDocument[]; projects: EdonProject[]; onCreate: (document: EdonDocument, projectId?: string) => void; onOpen: (document: EdonDocument) => void; onProjectsChange: (projects: EdonProject[]) => void; onMoveDocument: (documentId: string, projectId: string | null) => void }
+type DialogState = { kind: 'create' } | { kind: 'rename'; project: EdonProject } | { kind: 'delete'; project: EdonProject } | null
+const formatUpdated = (date: string) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(date))
+
+export function HomeView({ documents, projects, onCreate, onOpen, onProjectsChange, onMoveDocument }: HomeViewProps) {
+  const [creating, setCreating] = useState(false); const [query, setQuery] = useState(''); const [gridView, setGridView] = useState(true)
+  const [section, setSection] = useState<'recent' | 'projects'>('recent'); const [projectId, setProjectId] = useState<string | null>(null); const [dialog, setDialog] = useState<DialogState>(null)
+  const activeProject = projects.find((project) => project.id === projectId) ?? null
+  const visibleDocuments = useMemo(() => { const allowed = activeProject ? new Set(activeProject.documentIds) : null; return documents.filter((document) => (!allowed || allowed.has(document.id)) && document.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }, [activeProject, documents, query])
+  const openProjects = () => { setSection('projects'); setProjectId(null); setQuery('') }
+  const saveProject = (name: string) => { if (dialog?.kind === 'create') onProjectsChange([createProject(name), ...projects]); if (dialog?.kind === 'rename') onProjectsChange(projects.map((project) => project.id === dialog.project.id ? { ...project, name, updatedAt: new Date().toISOString() } : project)); setDialog(null) }
+  const deleteProject = () => { if (dialog?.kind !== 'delete') return; onProjectsChange(projects.filter((project) => project.id !== dialog.project.id)); setProjectId(null); setDialog(null) }
+
+  return <main className="home-shell"><aside className="home-sidebar"><div className="home-brand"><BrandMark size={22} /><span>edon</span></div><button className="new-file-button" onClick={() => setCreating(true)}><FilePlus2 size={16} /> New file</button><nav className="home-nav" aria-label="File navigation"><button className={section === 'recent' ? 'is-active' : ''} onClick={() => { setSection('recent'); setProjectId(null) }}><Grid2X2 size={16} /> Recent</button><button className={section === 'projects' ? 'is-active' : ''} onClick={openProjects}><Folder size={16} /> Projects <span className="nav-count">{projects.length}</span></button></nav><div className="home-sidebar-footer"><div className="account-chip"><span>WK</span><div><strong>Local workspace</strong><small>Saved in this browser</small></div></div></div></aside>
+    <section className="files-view"><header className="files-header"><div className="files-title">{activeProject && <button className="back-projects" onClick={openProjects}><ArrowLeft size={14} /></button>}<div><p className="eyebrow">{activeProject ? 'Project' : 'Workspace'}</p><h1>{activeProject?.name ?? (section === 'projects' ? 'Projects' : 'Recent files')}</h1></div></div><div className="files-actions">{section === 'projects' && !activeProject && <button className="button-primary compact-button" onClick={() => setDialog({ kind: 'create' })}><FolderPlus size={14} /> New project</button>}{activeProject && <><button className="button-secondary compact-button" onClick={() => setDialog({ kind: 'rename', project: activeProject })}><Pencil size={13} /> Rename</button><button className="button-primary compact-button" onClick={() => setCreating(true)}><FilePlus2 size={14} /> New file</button></>}{(section === 'recent' || activeProject) && <label className="search-control"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" /></label>}{(section === 'recent' || activeProject) && <div className="view-switcher"><IconButton label="Grid view" active={gridView} onClick={() => setGridView(true)}><Grid2X2 size={15} /></IconButton><IconButton label="List view" active={!gridView} onClick={() => setGridView(false)}><List size={15} /></IconButton></div>}</div></header>
+      {section === 'projects' && !activeProject ? <ProjectsGrid projects={projects} documents={documents} onOpen={(project) => setProjectId(project.id)} onRename={(project) => setDialog({ kind: 'rename', project })} onDelete={(project) => setDialog({ kind: 'delete', project })} onCreate={() => setDialog({ kind: 'create' })} /> : <DocumentGrid documents={visibleDocuments} projects={projects} activeProject={activeProject} query={query} gridView={gridView} onOpen={onOpen} onMove={onMoveDocument} onCreate={() => setCreating(true)} />}
+    </section>{creating && <NewFileDialog onClose={() => setCreating(false)} onCreate={(document) => { setCreating(false); onCreate(document, activeProject?.id) }} />}{dialog?.kind === 'create' && <ProjectDialog title="New project" onClose={() => setDialog(null)} onConfirm={saveProject} />}{dialog?.kind === 'rename' && <ProjectDialog title="Rename project" initialName={dialog.project.name} onClose={() => setDialog(null)} onConfirm={saveProject} />}{dialog?.kind === 'delete' && <ProjectDialog title={`Delete ${dialog.project.name}?`} destructive detail="The project container will be removed. Its Edon documents stay safely available in Recent files." onClose={() => setDialog(null)} onConfirm={deleteProject} />}</main>
 }
 
-const formatUpdated = (date: string) => new Intl.DateTimeFormat(undefined, {
-  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-}).format(new Date(date))
+function ProjectsGrid({ projects, documents, onOpen, onRename, onDelete, onCreate }: { projects: EdonProject[]; documents: EdonDocument[]; onOpen: (project: EdonProject) => void; onRename: (project: EdonProject) => void; onDelete: (project: EdonProject) => void; onCreate: () => void }) {
+  if (!projects.length) return <div className="files-empty"><div className="empty-sheet project-empty"><Folder size={24} /></div><h2>Create your first project</h2><p>Keep related Edon files together in a durable workspace.</p><button className="button-primary" onClick={onCreate}><FolderPlus size={15} /> Create a project</button></div>
+  return <div className="project-grid">{projects.map((project) => { const count = project.documentIds.filter((id) => documents.some((document) => document.id === id)).length; return <article className="project-card" key={project.id} tabIndex={0} onClick={() => onOpen(project)} onKeyDown={(event) => event.key === 'Enter' && onOpen(project)}><div className="project-folder"><Folder size={24} /><span>{count}</span></div><div><strong>{project.name}</strong><small>{count} {count === 1 ? 'file' : 'files'} · Updated {formatUpdated(project.updatedAt)}</small></div><details onClick={(event) => event.stopPropagation()}><summary aria-label={`Project actions for ${project.name}`}><MoreHorizontal size={15} /></summary><div className="project-menu"><button onClick={() => onRename(project)}><Pencil size={13} /> Rename</button><button className="danger" onClick={() => onDelete(project)}><Trash2 size={13} /> Delete</button></div></details></article> })}</div>
+}
 
-export function HomeView({ documents, onCreate, onOpen }: HomeViewProps) {
-  const [creating, setCreating] = useState(false)
-  const [query, setQuery] = useState('')
-  const [gridView, setGridView] = useState(true)
-  const filtered = documents
-    .filter((document) => document.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-
-  return (
-    <main className="home-shell">
-      <aside className="home-sidebar">
-        <div className="home-brand"><BrandMark size={22} /><span>edon</span></div>
-        <button className="new-file-button" onClick={() => setCreating(true)}><FilePlus2 size={16} /> New file</button>
-        <nav className="home-nav" aria-label="File navigation">
-          <button className="is-active"><Grid2X2 size={16} /> Recent</button>
-          <button disabled><Folder size={16} /> Projects <span className="coming-soon">Soon</span></button>
-        </nav>
-        <div className="home-sidebar-footer">
-          <div className="account-chip"><span>WK</span><div><strong>Local workspace</strong><small>Saved in this browser</small></div></div>
-        </div>
-      </aside>
-
-      <section className="files-view">
-        <header className="files-header">
-          <div><p className="eyebrow">Workspace</p><h1>Recent files</h1></div>
-          <div className="files-actions">
-            <label className="search-control"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" /></label>
-            <div className="view-switcher">
-              <IconButton label="Grid view" active={gridView} onClick={() => setGridView(true)}><Grid2X2 size={15} /></IconButton>
-              <IconButton label="List view" active={!gridView} onClick={() => setGridView(false)}><List size={15} /></IconButton>
-            </div>
-          </div>
-        </header>
-
-        {filtered.length > 0 ? (
-          <div className={gridView ? 'file-grid' : 'file-list'}>
-            {filtered.map((document) => {
-              const page = document.pages[0]
-              return (
-                <article className="file-card" key={document.id} onClick={() => onOpen(document)} tabIndex={0} onKeyDown={(event) => event.key === 'Enter' && onOpen(document)}>
-                  <div className="file-preview">
-                    <div className="file-artboard" style={{ aspectRatio: `${page.width} / ${page.height}` }}>
-                      {page.elements.slice(0, 8).map((element) => <span key={element.id} style={{ left: `${element.x / page.width * 100}%`, top: `${element.y / page.height * 100}%`, width: `${element.width / page.width * 100}%`, height: `${element.height / page.height * 100}%`, background: element.fill, borderRadius: element.type === 'ellipse' ? '50%' : `${Math.min(element.cornerRadius, 6)}px` }} />)}
-                    </div>
-                    <button className="file-open-action" aria-label={`Open ${document.name}`}><ArrowUpRight size={16} /></button>
-                  </div>
-                  <div className="file-meta"><div><strong>{document.name}</strong><span>{page.width} × {page.height} · Edited {formatUpdated(document.updatedAt)}</span></div></div>
-                </article>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="files-empty">
-            <div className="empty-sheet"><span /><span /><span /></div>
-            <h2>{query ? 'No matching files' : 'Your first canvas is waiting'}</h2>
-            <p>{query ? 'Try a different file name.' : 'Create a precise, focused workspace and start shaping your idea.'}</p>
-            {!query && <button className="button-primary" onClick={() => setCreating(true)}><FilePlus2 size={15} /> Create a file</button>}
-          </div>
-        )}
-      </section>
-
-      {creating && <NewFileDialog onClose={() => setCreating(false)} onCreate={(document) => { setCreating(false); onCreate(document) }} />}
-    </main>
-  )
+function DocumentGrid({ documents, projects, activeProject, query, gridView, onOpen, onMove, onCreate }: { documents: EdonDocument[]; projects: EdonProject[]; activeProject: EdonProject | null; query: string; gridView: boolean; onOpen: (document: EdonDocument) => void; onMove: (id: string, projectId: string | null) => void; onCreate: () => void }) {
+  if (!documents.length) return <div className="files-empty"><div className="empty-sheet"><span /><span /><span /></div><h2>{query ? 'No matching files' : activeProject ? 'This project is empty' : 'Your first canvas is waiting'}</h2><p>{query ? 'Try a different file name.' : activeProject ? 'Create a file here or move an existing file into this project from Recent.' : 'Create a precise, focused workspace and start shaping your idea.'}</p>{!query && <button className="button-primary" onClick={onCreate}><FilePlus2 size={15} /> Create a file</button>}</div>
+  return <div className={gridView ? 'file-grid' : 'file-list'}>{documents.map((document) => { const page = document.pages[0]; const currentProject = projects.find((project) => project.documentIds.includes(document.id)); return <article className="file-card" key={document.id} onClick={() => onOpen(document)} tabIndex={0} onKeyDown={(event) => event.key === 'Enter' && onOpen(document)}><div className="file-preview"><div className="file-artboard" style={{ aspectRatio: `${page.width} / ${page.height}` }}>{page.elements.slice(0, 8).map((element) => <span key={element.id} style={{ left: `${element.x / page.width * 100}%`, top: `${element.y / page.height * 100}%`, width: `${element.width / page.width * 100}%`, height: `${element.height / page.height * 100}%`, background: element.fill, borderRadius: element.type === 'ellipse' ? '50%' : `${Math.min(element.cornerRadius, 6)}px` }} />)}</div><button className="file-open-action" aria-label={`Open ${document.name}`}><ArrowUpRight size={16} /></button></div><div className="file-meta"><div><strong>{document.name}</strong><span>{page.width} × {page.height} · Edited {formatUpdated(document.updatedAt)}</span></div><label className="file-project-select" onClick={(event) => event.stopPropagation()}><Folder size={12} /><select aria-label={`Project for ${document.name}`} value={currentProject?.id ?? ''} onChange={(event) => onMove(document.id, event.target.value || null)}><option value="">No project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label></div></article> })}</div>
 }

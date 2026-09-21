@@ -2,11 +2,13 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Pipette, X } from 'lucide-react'
 import { hsvaToRgba, normalizeHex, parseColor, rgbaToHex, rgbaToHsva, type Hsva } from './color-model'
 import { useEditor } from './editor-state'
+import { ViewportLayer } from '../ui/ViewportLayer'
 
 export function ColorControl({ value, label = 'Color', onChange }: { value: string; label?: string; onChange: (value: string, live?: boolean) => void }) {
   const [open, setOpen] = useState(false)
   const [previous, setPrevious] = useState(value)
-  return <div className="edon-color-control"><button aria-label={`${label}: ${value}`} className="edon-color-button" onClick={() => { setPrevious(value); setOpen((current) => !current) }}><i className="checkerboard"><span style={{ background: value }} /></i><code>{value.toUpperCase()}</code></button>{open && <ColorPicker value={value} previous={previous} onChange={onChange} onClose={() => setOpen(false)} />}</div>
+  const anchorRef = useRef<HTMLButtonElement>(null)
+  return <div className="edon-color-control"><button ref={anchorRef} aria-label={`${label}: ${value}`} className="edon-color-button" onClick={() => { setPrevious(value); setOpen((current) => !current) }}><i className="checkerboard"><span style={{ background: value }} /></i><code>{value.toUpperCase()}</code></button>{open && <ViewportLayer anchor={anchorRef} preferred="bottom" onDismiss={() => setOpen(false)}><ColorPicker value={value} previous={previous} onChange={onChange} onClose={() => setOpen(false)} /></ViewportLayer>}</div>
 }
 
 function ColorPicker({ value, previous, onChange, onClose }: { value: string; previous: string; onChange: (value: string, live?: boolean) => void; onClose: () => void }) {
