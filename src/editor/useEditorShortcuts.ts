@@ -1,8 +1,6 @@
 import { useEffect } from 'react'
-import { useEditor, type EditorTool } from './editor-state'
-
-const toolShortcuts: Record<string, EditorTool> = { v: 'select', f: 'frame', r: 'rectangle', o: 'ellipse', l: 'line', a: 'arrow', p: 'polygon', s: 'star', t: 'text', h: 'hand' }
-const isTypingTarget = (target: EventTarget | null) => target instanceof HTMLElement && target.matches('input, textarea, select, [contenteditable="true"]')
+import { useEditor } from './editor-state'
+import { isTypingTarget, TOOL_BY_KEY } from './shortcuts'
 
 export function useEditorShortcuts(): void {
   const editor = useEditor()
@@ -34,10 +32,7 @@ export function useEditorShortcuts(): void {
       if (key === '1') return run(() => editor.setZoom(1))
       if (key === '2') return run(() => editor.setZoom(.5))
       if (!modifier && !event.altKey) {
-        if (editor.artMode && key === 'n') return run(() => editor.setTool('pencil'))
-        if (editor.artMode && key === 'p') return run(() => editor.setTool('pen'))
-        if (editor.artMode && key === 'i') return run(() => editor.setTool('eyedropper'))
-        const tool = toolShortcuts[key]
+        const tool = TOOL_BY_KEY[key]
         if (tool) run(() => editor.setTool(tool))
       }
     }

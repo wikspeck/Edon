@@ -44,7 +44,7 @@ function serializeElement(element: EdonElement, offsetX: number, offsetY: number
   if (element.type === 'path') return `<svg ${common} width="${element.width}" height="${element.height}" viewBox="0 0 ${element.width} ${element.height}" overflow="visible"><path d="${escapeXml(element.pathData ?? '')}" fill="${fill}" fill-rule="evenodd" ${stroke}/></svg>`
   if (element.type === 'line' || element.type === 'arrow') return `<svg ${common} width="${element.width}" height="${element.height}" viewBox="0 0 100 100" overflow="visible"><line x1="1" y1="50" x2="99" y2="50" ${stroke}/></svg>`
   if (element.type === 'text') return `<foreignObject ${common} width="${element.width}" height="${element.height}"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:${escapeXml(element.fontFamily ?? 'sans-serif')};font-size:${element.fontSize}px;font-weight:${element.fontWeight};line-height:${element.lineHeight};letter-spacing:${element.letterSpacing}px;color:${fill};white-space:pre-wrap">${escapeXml(element.text ?? '')}</div></foreignObject>`
-  if (element.type === 'image' && element.imageUrl) return `<image ${common} width="${element.width}" height="${element.height}" href="${escapeXml(element.imageUrl)}" preserveAspectRatio="xMidYMid slice"/>`
+  if ((element.type === 'image' || element.type === 'raster') && element.imageUrl) return `<image ${common} width="${element.width}" height="${element.height}" href="${escapeXml(element.imageUrl)}" preserveAspectRatio="${element.type === 'raster' ? 'none' : 'xMidYMid slice'}"/>`
   return ''
 }
 

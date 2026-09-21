@@ -3,8 +3,9 @@ import { createId, getActivePage, type BrushPreset, type EdonDocument, type Edon
 import { alignSelection, copyPayload, deleteSelection, distributeSelection, duplicateSelection, groupSelection, pastePayload, renameElement, reorderSelection, ungroupSelection, updateElements, type AlignMode, type DistributeMode, type LayerOrder, type SceneResult } from './scene-commands'
 import { booleanElements, canBoolean, type BooleanOperation } from './vector-boolean'
 
-export type EditorTool = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'image' | 'hand' | 'pencil' | 'pen' | 'eyedropper' | 'fill'
-export interface ArtToolSettings { color: string; size: number; opacity: number; smoothing: number; stabilization: number; simplify: number; brushPreset: BrushPreset }
+export type EditorTool = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'image' | 'hand' | 'pencil' | 'pen' | 'brush' | 'eraser' | 'eyedropper' | 'fill'
+export type GapClosing = 'off' | 'small' | 'medium' | 'large'
+export interface ArtToolSettings { color: string; size: number; opacity: number; hardness: number; smoothing: number; stabilization: number; simplify: number; brushPreset: BrushPreset; antiAlias: boolean; fillTolerance: number; gapClosing: GapClosing; contiguous: boolean }
 interface HistoryEntry { document: EdonDocument; label: string }
 
 interface EditorState {
@@ -20,7 +21,6 @@ interface EditorState {
   transactionBase: EdonDocument | null
   transactionLabel: string
   canPaste: boolean
-  artMode: boolean
   silhouettePreview: boolean
   vectorEditId: string | null
   artSettings: ArtToolSettings
@@ -40,7 +40,6 @@ type Action =
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'SET_CAN_PASTE'; value: boolean }
-  | { type: 'TOGGLE_ART_MODE' }
   | { type: 'SET_SILHOUETTE'; value: boolean }
   | { type: 'SET_VECTOR_EDIT'; id: string | null }
   | { type: 'SET_ART_SETTINGS'; patch: Partial<ArtToolSettings> }
@@ -72,7 +71,6 @@ function reducer(state: EditorState, action: Action): EditorState {
       return { ...state, document: next.document, past: [...state.past, { document: state.document, label: next.label }], future: state.future.slice(1), selectionIds: state.selectionIds.filter((id) => getActivePage(next.document).elements.some((element) => element.id === id)) }
     }
     case 'SET_CAN_PASTE': return { ...state, canPaste: action.value }
-    case 'TOGGLE_ART_MODE': return { ...state, artMode: !state.artMode }
     case 'SET_SILHOUETTE': return { ...state, silhouettePreview: action.value }
     case 'SET_VECTOR_EDIT': return { ...state, vectorEditId: action.id }
     case 'SET_ART_SETTINGS': return { ...state, artSettings: { ...state.artSettings, ...action.patch } }
@@ -116,7 +114,6 @@ interface EditorContextValue extends EditorState {
   endTransaction: () => void
   undo: () => void
   redo: () => void
-  toggleArtMode: () => void
   setSilhouettePreview: (value: boolean) => void
   setVectorEdit: (id: string | null) => void
   setArtSettings: (patch: Partial<ArtToolSettings>) => void
@@ -136,8 +133,8 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
   const [state, dispatch] = useReducer(reducer, {
     document: initialDocument, selectionIds: [], tool: 'select' as EditorTool, zoom: .5, pan: { x: 0, y: 0 },
     leftPanelOpen: true, rightPanelOpen: true, past: [], future: [], transactionBase: null, transactionLabel: '', canPaste: false,
-    artMode: false, silhouettePreview: false, vectorEditId: null, recentColors: [],
-    artSettings: { color: '#171719', size: 6, opacity: 1, smoothing: 55, stabilization: 35, simplify: 24, brushPreset: 'inking' as BrushPreset },
+    silhouettePreview: false, vectorEditId: null, recentColors: [],
+    artSettings: { color: '#171719', size: 6, opacity: 1, hardness: 100, smoothing: 55, stabilization: 35, simplify: 24, brushPreset: 'inking' as BrushPreset, antiAlias: true, fillTolerance: 24, gapClosing: 'medium' as GapClosing, contiguous: true },
   })
   const clipboard = useRef<EdonElement[]>([])
   const pasteCount = useRef(0)
@@ -193,7 +190,6 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
     endTransaction: () => dispatch({ type: 'END_TRANSACTION' }),
     undo: () => dispatch({ type: 'UNDO' }),
     redo: () => dispatch({ type: 'REDO' }),
-    toggleArtMode: () => dispatch({ type: 'TOGGLE_ART_MODE' }),
     setSilhouettePreview: (value) => dispatch({ type: 'SET_SILHOUETTE', value }),
     setVectorEdit: (id) => dispatch({ type: 'SET_VECTOR_EDIT', id }),
     setArtSettings: (patch) => dispatch({ type: 'SET_ART_SETTINGS', patch }),
@@ -236,5 +232,5 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
 
 export function useEditor(): EditorContextValue { const context = useContext(EditorContext); if (!context) throw new Error('useEditor must be used inside EditorProvider'); return context }
 
-export const TOOL_LABELS: Record<EditorTool, string> = { select: 'Select', frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', line: 'Line', arrow: 'Arrow', polygon: 'Polygon', star: 'Star', text: 'Text', image: 'Image', hand: 'Hand', pencil: 'Pencil', pen: 'Pen', eyedropper: 'Eyedropper', fill: 'Fill' }
+export const TOOL_LABELS: Record<EditorTool, string> = { select: 'Select', frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', line: 'Line', arrow: 'Arrow', polygon: 'Polygon', star: 'Star', text: 'Text', image: 'Image', hand: 'Hand', pencil: 'Pencil', pen: 'Pen', brush: 'Brush', eraser: 'Eraser', eyedropper: 'Eyedropper', fill: 'Paint Bucket' }
 export const DRAWABLE_TOOLS: ElementType[] = ['frame', 'rectangle', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text']

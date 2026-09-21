@@ -1,9 +1,9 @@
 import { useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { ArrowRight, ChevronDown, Circle, Eye, EyeOff, Frame, Group, Hexagon, Image, Lock, LockOpen, Minus, MousePointer2, Square, Star, Type } from 'lucide-react'
+import { ArrowRight, ChevronDown, Circle, Eye, EyeOff, Frame, Group, Hexagon, Image, Layers, Lock, LockOpen, Minus, MousePointer2, Square, Star, Type } from 'lucide-react'
 import type { EdonElement } from '../model/document'
 import { useEditor } from './editor-state'
 
-const iconFor = { group: Group, frame: Frame, rectangle: Square, ellipse: Circle, line: Minus, arrow: ArrowRight, polygon: Hexagon, star: Star, path: MousePointer2, text: Type, image: Image }
+const iconFor = { group: Group, frame: Frame, rectangle: Square, ellipse: Circle, line: Minus, arrow: ArrowRight, polygon: Hexagon, star: Star, path: MousePointer2, text: Type, image: Image, raster: Layers }
 
 export function LayersPanel() {
   const editor = useEditor()

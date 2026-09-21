@@ -18,6 +18,11 @@ export function imageElementFromFile(file: File, page: Pick<EdonPage, 'width' | 
         const element = createElement('image', point?.x ?? page.width / 2 - width / 2, point?.y ?? page.height / 2 - height / 2, width, height)
         element.name = file.name.replace(/\.[^.]+$/, '') || 'Image'
         element.imageUrl = imageData
+        element.originalImageUrl = imageData
+        element.fill = '#00000000'
+        element.fillPaint = { type: 'solid', color: '#00000000' }
+        element.stroke = '#00000000'
+        element.strokeWidth = 0
         resolve(element)
       })
       image.src = imageData

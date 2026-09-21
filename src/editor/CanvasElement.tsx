@@ -30,10 +30,10 @@ export const CanvasElement = memo(function CanvasElement({ element, selected, ed
     >{element.text}</span>
   </div>
 
-  if (element.type === 'image') {
+  if (element.type === 'image' || element.type === 'raster') {
     const crop = element.crop ?? { x: 0, y: 0, width: 1, height: 1 }
     return <div {...common} style={{ ...style, overflow: element.mask || crop.width < 1 || crop.height < 1 ? 'hidden' : 'visible' }}>
-      {element.imageUrl && <img src={element.imageUrl} alt="" draggable={false} style={{ position: 'absolute', width: `${100 / crop.width}%`, height: `${100 / crop.height}%`, left: `${-crop.x / crop.width * 100}%`, top: `${-crop.y / crop.height * 100}%`, objectFit: 'cover' }} />}
+      {element.imageUrl && <img src={element.imageUrl} alt="" draggable={false} style={{ position: 'absolute', width: `${100 / crop.width}%`, height: `${100 / crop.height}%`, left: `${-crop.x / crop.width * 100}%`, top: `${-crop.y / crop.height * 100}%`, objectFit: element.type === 'raster' ? 'fill' : 'cover', imageRendering: element.type === 'raster' ? 'pixelated' : 'auto' }} />}
     </div>
   }
 
