@@ -19,12 +19,12 @@ export default function App() {
 
   const createDocument = (document: EdonDocument, projectId?: string) => {
     persist([document, ...documents])
-    if (projectId) updateProjects(projects.map((project) => project.id === projectId ? { ...project, documentIds: [document.id, ...project.documentIds], updatedAt: new Date().toISOString() } : project))
+    if (projectId) updateProjects(projects.map((project) => project.id === projectId ? { ...project, revision: project.revision + 1, documentIds: [document.id, ...project.documentIds], updatedAt: new Date().toISOString() } : project))
     setActiveId(document.id)
   }
 
   const updateProjects = (next: EdonProject[]) => { setProjects(next); saveProjects(next) }
-  const moveDocument = (documentId: string, projectId: string | null) => updateProjects(projects.map((project) => ({ ...project, documentIds: project.id === projectId ? [...new Set([documentId, ...project.documentIds])] : project.documentIds.filter((id) => id !== documentId), updatedAt: project.documentIds.includes(documentId) || project.id === projectId ? new Date().toISOString() : project.updatedAt })))
+  const moveDocument = (documentId: string, projectId: string | null) => updateProjects(projects.map((project) => { const changed = project.documentIds.includes(documentId) || project.id === projectId; return { ...project, revision: changed ? project.revision + 1 : project.revision, documentIds: project.id === projectId ? [...new Set([documentId, ...project.documentIds])] : project.documentIds.filter((id) => id !== documentId), updatedAt: changed ? new Date().toISOString() : project.updatedAt } }))
 
   const updateDocument = useCallback((updated: EdonDocument) => {
     setDocuments((current) => {

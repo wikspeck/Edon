@@ -83,7 +83,7 @@ export interface EdonElement {
 }
 
 export interface EdonPage { id: string; name: string; width: number; height: number; background: string; elements: EdonElement[] }
-export interface EdonDocument { version: 4; id: string; name: string; createdAt: string; updatedAt: string; activePageId: string; pages: EdonPage[]; palette: PaletteColor[] }
+export interface EdonDocument { version: 4; revision: number; id: string; name: string; createdAt: string; updatedAt: string; activePageId: string; pages: EdonPage[]; palette: PaletteColor[] }
 export interface DocumentPreset { id: string; label: string; detail: string; width: number; height: number; unit?: 'px' | 'mm' }
 
 export const DOCUMENT_PRESETS: DocumentPreset[] = [
@@ -113,7 +113,7 @@ export const DEFAULT_PALETTE: PaletteColor[] = [
 export function createDocument(name: string, width: number, height: number): EdonDocument {
   const timestamp = new Date().toISOString()
   const pageId = createId('page')
-  return { version: 4, id: createId('doc'), name: name.trim() || 'Untitled', createdAt: timestamp, updatedAt: timestamp, activePageId: pageId, pages: [{ id: pageId, name: 'Page 1', width, height, background: '#ffffff', elements: [] }], palette: DEFAULT_PALETTE.map((color) => ({ ...color })) }
+  return { version: 4, revision: 1, id: createId('doc'), name: name.trim() || 'Untitled', createdAt: timestamp, updatedAt: timestamp, activePageId: pageId, pages: [{ id: pageId, name: 'Page 1', width, height, background: '#ffffff', elements: [] }], palette: DEFAULT_PALETTE.map((color) => ({ ...color })) }
 }
 
 export function createElement(type: ElementType, x: number, y: number, width?: number, height?: number): EdonElement {
@@ -155,5 +155,5 @@ export function migrateDocument(input: unknown): EdonDocument | null {
   if (!input || typeof input !== 'object') return null
   const document = input as Partial<EdonDocument> & { version?: number; pages?: EdonPage[] }
   if (!document.id || !document.pages?.length || !document.activePageId) return null
-  return { ...(document as Omit<EdonDocument, 'version' | 'pages' | 'palette'>), version: 4, pages: document.pages.map((page) => ({ ...page, elements: page.elements.map(normalizeElement) })), palette: Array.isArray(document.palette) ? document.palette : DEFAULT_PALETTE.map((color) => ({ ...color })) }
+  return { ...(document as Omit<EdonDocument, 'version' | 'revision' | 'pages' | 'palette'>), version: 4, revision: Number.isSafeInteger(document.revision) && Number(document.revision) > 0 ? Number(document.revision) : 1, pages: document.pages.map((page) => ({ ...page, elements: page.elements.map(normalizeElement) })), palette: Array.isArray(document.palette) ? document.palette : DEFAULT_PALETTE.map((color) => ({ ...color })) }
 }

@@ -46,7 +46,7 @@ type Action =
   | { type: 'SET_ART_SETTINGS'; patch: Partial<ArtToolSettings> }
   | { type: 'REMEMBER_COLOR'; color: string }
 
-const touch = (document: EdonDocument): EdonDocument => ({ ...document, updatedAt: new Date().toISOString() })
+const touch = (document: EdonDocument, previousRevision = document.revision): EdonDocument => ({ ...document, revision: previousRevision + 1, updatedAt: new Date().toISOString() })
 
 function reducer(state: EditorState, action: Action): EditorState {
   switch (action.type) {
@@ -55,21 +55,23 @@ function reducer(state: EditorState, action: Action): EditorState {
     case 'SET_ZOOM': return { ...state, zoom: Math.min(8, Math.max(.05, action.zoom)) }
     case 'SET_PAN': return { ...state, pan: action.pan }
     case 'TOGGLE_PANEL': return action.panel === 'left' ? { ...state, leftPanelOpen: !state.leftPanelOpen } : { ...state, rightPanelOpen: !state.rightPanelOpen }
-    case 'COMMIT_DOCUMENT': return { ...state, document: touch(action.document), selectionIds: action.selectionIds ?? state.selectionIds, past: [...state.past.slice(-99), { document: state.document, label: action.label }], future: [] }
+    case 'COMMIT_DOCUMENT': return { ...state, document: touch(action.document, state.document.revision), selectionIds: action.selectionIds ?? state.selectionIds, past: [...state.past.slice(-99), { document: state.document, label: action.label }], future: [] }
     case 'LIVE_DOCUMENT': return { ...state, document: action.document }
     case 'BEGIN_TRANSACTION': return state.transactionBase ? state : { ...state, transactionBase: state.document, transactionLabel: action.label }
     case 'END_TRANSACTION':
       if (!state.transactionBase || state.transactionBase === state.document) return { ...state, transactionBase: null, transactionLabel: '' }
-      return { ...state, document: touch(state.document), past: [...state.past.slice(-99), { document: state.transactionBase, label: state.transactionLabel }], future: [], transactionBase: null, transactionLabel: '' }
+      return { ...state, document: touch(state.document, state.transactionBase.revision), past: [...state.past.slice(-99), { document: state.transactionBase, label: state.transactionLabel }], future: [], transactionBase: null, transactionLabel: '' }
     case 'UNDO': {
       const previous = state.past.at(-1)
       if (!previous) return state
-      return { ...state, document: previous.document, past: state.past.slice(0, -1), future: [{ document: state.document, label: previous.label }, ...state.future], selectionIds: state.selectionIds.filter((id) => getActivePage(previous.document).elements.some((element) => element.id === id)) }
+      const document = touch(previous.document, state.document.revision)
+      return { ...state, document, past: state.past.slice(0, -1), future: [{ document: state.document, label: previous.label }, ...state.future], selectionIds: state.selectionIds.filter((id) => getActivePage(document).elements.some((element) => element.id === id)) }
     }
     case 'REDO': {
       const next = state.future[0]
       if (!next) return state
-      return { ...state, document: next.document, past: [...state.past, { document: state.document, label: next.label }], future: state.future.slice(1), selectionIds: state.selectionIds.filter((id) => getActivePage(next.document).elements.some((element) => element.id === id)) }
+      const document = touch(next.document, state.document.revision)
+      return { ...state, document, past: [...state.past, { document: state.document, label: next.label }], future: state.future.slice(1), selectionIds: state.selectionIds.filter((id) => getActivePage(document).elements.some((element) => element.id === id)) }
     }
     case 'SET_CAN_PASTE': return { ...state, canPaste: action.value }
     case 'SET_SILHOUETTE': return { ...state, silhouettePreview: action.value }

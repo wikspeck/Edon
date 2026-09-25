@@ -2,6 +2,7 @@ import { createId } from './document'
 
 export interface EdonProject {
   version: 1
+  revision: number
   id: string
   name: string
   createdAt: string
@@ -12,7 +13,7 @@ export interface EdonProject {
 
 export function createProject(name: string): EdonProject {
   const timestamp = new Date().toISOString()
-  return { version: 1, id: createId('project'), name: name.trim() || 'Untitled project', createdAt: timestamp, updatedAt: timestamp, documentIds: [], metadata: { sort: 'updated' } }
+  return { version: 1, revision: 1, id: createId('project'), name: name.trim() || 'Untitled project', createdAt: timestamp, updatedAt: timestamp, documentIds: [], metadata: { sort: 'updated' } }
 }
 
 export function normalizeProject(input: unknown): EdonProject | null {
@@ -20,5 +21,5 @@ export function normalizeProject(input: unknown): EdonProject | null {
   const project = input as Partial<EdonProject>
   if (!project.id || !project.name) return null
   const timestamp = new Date().toISOString()
-  return { version: 1, id: project.id, name: project.name, createdAt: project.createdAt ?? timestamp, updatedAt: project.updatedAt ?? timestamp, documentIds: Array.isArray(project.documentIds) ? [...new Set(project.documentIds.filter((id): id is string => typeof id === 'string'))] : [], metadata: project.metadata ?? {} }
+  return { version: 1, revision: Number.isSafeInteger(project.revision) && Number(project.revision) > 0 ? Number(project.revision) : 1, id: project.id, name: project.name, createdAt: project.createdAt ?? timestamp, updatedAt: project.updatedAt ?? timestamp, documentIds: Array.isArray(project.documentIds) ? [...new Set(project.documentIds.filter((id): id is string => typeof id === 'string'))] : [], metadata: project.metadata ?? {} }
 }

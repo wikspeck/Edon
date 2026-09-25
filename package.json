@@ -9,9 +9,12 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build --configLoader native",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
+    "test:api": "node scripts/test-public-api.mjs",
+    "validate:openapi": "node scripts/validate-openapi.mjs",
+    "check": "npm run lint && npm run typecheck && npm run test:api && npm run validate:openapi && npm run build",
     "preview": "vite preview",
     "cf:dev": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",
