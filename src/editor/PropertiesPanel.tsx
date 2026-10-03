@@ -90,6 +90,10 @@ function ImageProperties({ element, update }: PropertyGroupProps) {
   const editor = useEditor(); const adjustments = element.adjustments ?? DEFAULT_ADJUSTMENTS; const crop = element.crop ?? { x: 0, y: 0, width: 1, height: 1 }
   const setAdjustment = (key: keyof ImageAdjustments, value: number, live: boolean) => editor.updateElement(element.id, { adjustments: { ...adjustments, [key]: value } }, live)
   return <>
+    <PropertySection title="Image outline" open>
+      <button className="auto-enhance" onClick={() => { const outline = element.effects.find((effect) => effect.type === 'outline'); update({ effects: outline ? element.effects.map((effect) => effect.id === outline.id ? { ...effect, enabled: !effect.enabled } : effect) : [...element.effects, { id: createId('effect'), type: 'outline', enabled: true, color: '#ffffff', opacity: 1, width: 4 }] }) }}>{element.effects.some((effect) => effect.type === 'outline' && effect.enabled) ? 'Disable outline' : 'Add outline'}</button>
+      <p className="tool-hint">Follows PNG transparency. Adjust colour and width in Effects.</p>
+    </PropertySection>
     <PropertySection title="Crop & mask">
       <RangeRow label="Crop X" value={Math.round(crop.x * 100)} min={0} max={Math.round((1 - crop.width) * 100)} onChange={(value, live) => editor.updateElement(element.id, { crop: { ...crop, x: value / 100 } }, live)} />
       <RangeRow label="Crop Y" value={Math.round(crop.y * 100)} min={0} max={Math.round((1 - crop.height) * 100)} onChange={(value, live) => editor.updateElement(element.id, { crop: { ...crop, y: value / 100 } }, live)} />

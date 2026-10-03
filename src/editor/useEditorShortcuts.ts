@@ -2,11 +2,11 @@ import { useEffect } from 'react'
 import { useEditor } from './editor-state'
 import { isTypingTarget, TOOL_BY_KEY } from './shortcuts'
 
-export function useEditorShortcuts(): void {
+export function useEditorShortcuts(enabled = true): void {
   const editor = useEditor()
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target)) return
+      if (!enabled || isTypingTarget(event.target)) return
       const key = event.key.toLowerCase()
       const modifier = event.ctrlKey || event.metaKey
       const run = (action: () => void) => { event.preventDefault(); action() }
@@ -38,5 +38,5 @@ export function useEditorShortcuts(): void {
     }
     window.addEventListener('keydown', keydown)
     return () => window.removeEventListener('keydown', keydown)
-  }, [editor])
+  }, [editor, enabled])
 }

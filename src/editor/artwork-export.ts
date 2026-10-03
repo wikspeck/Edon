@@ -1,5 +1,5 @@
 import type { EdonDocument, EdonElement, EdonPage } from '../model/document'
-import { polygonPoints } from './rendering'
+import { elementFilter, maskClipPath, polygonPoints } from './rendering'
 import { descendantsOf } from './geometry'
 import { flattenRenderOrder } from './scene-tree'
 
@@ -22,6 +22,7 @@ export async function exportArtwork(document: EdonDocument, options: ExportOptio
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Canvas export is unavailable')
     context.scale(options.scale, options.scale)
+    context.imageSmoothingEnabled = false
     if (!options.transparent || options.format === 'jpeg') { context.fillStyle = page.background; context.fillRect(0, 0, scope.width, scope.height) }
     context.drawImage(image, 0, 0, scope.width, scope.height)
     const mime = `image/${options.format}`
@@ -37,8 +38,9 @@ export function serializeArtwork(page: EdonPage, elements: EdonElement[], scope 
 
 function serializeElement(element: EdonElement, offsetX: number, offsetY: number): string {
   const x = element.x - offsetX; const y = element.y - offsetY
-  const transform = `translate(${x} ${y}) rotate(${element.rotation} ${element.width / 2} ${element.height / 2}) scale(${element.scaleX} ${element.scaleY})`
-  const common = `transform="${transform}" opacity="${element.opacity}"`
+  const transform = `translate(${x + element.width / 2} ${y + element.height / 2}) rotate(${element.rotation}) scale(${element.scaleX} ${element.scaleY}) translate(${-element.width / 2} ${-element.height / 2})`
+  const appearance = `filter:${elementFilter(element) ?? 'none'};clip-path:${maskClipPath(element) ?? 'none'};mix-blend-mode:${element.blendMode}`
+  const common = `transform="${transform}" opacity="${element.opacity}" style="${escapeXml(appearance)}"`
   const fill = element.fillPaint.type === 'solid' ? element.fill : element.fillPaint.stops[0]?.color ?? element.fill
   const stroke = `stroke="${element.stroke}" stroke-width="${element.strokeWidth}" stroke-opacity="${element.strokeOpacity ?? 1}" stroke-linecap="${element.strokeCap ?? 'round'}" stroke-linejoin="${element.strokeJoin ?? 'round'}"`
   if (element.type === 'rectangle' || element.type === 'frame') return `<rect ${common} width="${element.width}" height="${element.height}" rx="${element.cornerRadius}" fill="${fill}" ${stroke}/>`
@@ -47,7 +49,10 @@ function serializeElement(element: EdonElement, offsetX: number, offsetY: number
   if (element.type === 'path') return `<svg ${common} width="${element.width}" height="${element.height}" viewBox="0 0 ${element.width} ${element.height}" overflow="visible"><path d="${escapeXml(element.pathData ?? '')}" fill="${fill}" fill-rule="evenodd" ${stroke}/></svg>`
   if (element.type === 'line' || element.type === 'arrow') return `<svg ${common} width="${element.width}" height="${element.height}" viewBox="0 0 100 100" overflow="visible"><line x1="1" y1="50" x2="99" y2="50" ${stroke}/></svg>`
   if (element.type === 'text') return `<foreignObject ${common} width="${element.width}" height="${element.height}"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:${escapeXml(element.fontFamily ?? 'sans-serif')};font-size:${element.fontSize}px;font-weight:${element.fontWeight};line-height:${element.lineHeight};letter-spacing:${element.letterSpacing}px;color:${fill};white-space:pre-wrap">${escapeXml(element.text ?? '')}</div></foreignObject>`
-  if ((element.type === 'image' || element.type === 'raster') && element.imageUrl) return `<image ${common} width="${element.width}" height="${element.height}" href="${escapeXml(element.imageUrl)}" preserveAspectRatio="${element.type === 'raster' ? 'none' : 'xMidYMid slice'}"/>`
+  if ((element.type === 'image' || element.type === 'raster') && element.imageUrl) {
+    const crop = element.crop ?? { x: 0, y: 0, width: 1, height: 1 }
+    return `<g ${common}><svg width="${element.width}" height="${element.height}" overflow="${crop.width < 1 || crop.height < 1 ? 'hidden' : 'visible'}"><image x="${-crop.x / crop.width * element.width}" y="${-crop.y / crop.height * element.height}" width="${element.width / crop.width}" height="${element.height / crop.height}" href="${escapeXml(element.imageUrl)}" preserveAspectRatio="${element.type === 'raster' ? 'none' : 'xMidYMid slice'}" style="image-rendering:${element.type === 'raster' ? 'pixelated' : 'auto'}"/></svg></g>`
+  }
   return ''
 }
 

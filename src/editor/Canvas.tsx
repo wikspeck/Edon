@@ -32,6 +32,7 @@ export function Canvas() {
   const liveRasterRef = useRef<HTMLCanvasElement>(null)
   const liveRasterBaseRef = useRef<HTMLCanvasElement | null>(null)
   const rasterPointsRef = useRef<Point[]>([])
+  const bucketBusy = useRef(false)
   const lastTextPointer = useRef<{ id: string; time: number } | null>(null)
   const lastPathPointer = useRef<{ id: string; time: number } | null>(null)
   const [gesture, setGesture] = useState<Gesture | null>(null)
@@ -83,7 +84,7 @@ export function Canvas() {
 
   const capture = (event: ReactPointerEvent) => viewportRef.current?.setPointerCapture(event.pointerId)
   const startViewportPan = (event: ReactPointerEvent) => { event.preventDefault(); event.stopPropagation(); capture(event); setContextMenu(null); setGesture({ kind: 'pan', start: { x: event.clientX, y: event.clientY }, origin: editor.pan }) }
-  const pointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => { if (event.button === 1) startViewportPan(event) }
+  const pointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => { if (!isTyping(event.target)) event.preventDefault(); if (event.button === 1) startViewportPan(event) }
   const startRasterGesture = (event: ReactPointerEvent, point: Point, erase: boolean) => {
     const existing = editor.selectedElement?.type === 'raster' ? editor.selectedElement : erase ? [...flattenRenderOrder(editor.page.elements)].reverse().find((element) => element.type === 'raster') ?? null : null
     const canvas = liveRasterRef.current; if (!canvas) return
@@ -102,11 +103,15 @@ export function Canvas() {
     const context = canvas.getContext('2d')!; context.imageSmoothingEnabled = editor.artSettings.antiAlias; context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(base, 0, 0); renderRasterStroke(context, rasterPointsRef.current, editor.artSettings, erase)
   }
   const runBucket = async (point: Point) => {
-    setNotice('Finding enclosed region…')
-    const result = await paintEnclosedRegion(editor.page, point, editor.artSettings)
-    if (result.element) { editor.addElement(result.element); editor.rememberColor(editor.artSettings.color); setNotice(`Filled ${result.pixelCount.toLocaleString()} pixels`) }
-    else setNotice(result.reason ?? 'That region could not be filled.')
-    window.setTimeout(() => setNotice(null), 2800)
+    if (bucketBusy.current) return
+    bucketBusy.current = true
+    setNotice('Filling pixels…')
+    try {
+      const result = await paintEnclosedRegion(editor.page, point, editor.artSettings)
+      if (result.element) { editor.addElement(result.element); editor.rememberColor(editor.artSettings.color); setNotice(`Filled ${result.pixelCount.toLocaleString()} pixels`) }
+      else setNotice(result.reason ?? 'That region could not be filled.')
+    } catch { setNotice('Could not read this image. Try importing it again.') }
+    finally { bucketBusy.current = false; window.setTimeout(() => setNotice(null), 2800) }
   }
   const sampleAt = async (point: Point) => { const color = await sampleVisibleColor(editor.page, point); editor.rememberColor(color); setNotice(`Sampled ${color.toUpperCase()}`); window.setTimeout(() => setNotice(null), 1400) }
   const pointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -196,6 +201,7 @@ export function Canvas() {
   const pointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (['eyedropper', 'brush', 'eraser'].includes(editor.tool)) { const rect = event.currentTarget.getBoundingClientRect(); setCursorPoint({ x: event.clientX - rect.left, y: event.clientY - rect.top }) }
     if (!gesture) return
+    if (event.buttons === 0) { cancelGesture(); return }
     if (gesture.kind === 'pan') { editor.setPan({ x: gesture.origin.x + event.clientX - gesture.start.x, y: gesture.origin.y + event.clientY - gesture.start.y }); return }
     if (gesture.kind === 'pencil') {
       const point = pointInArtboard(event.clientX, event.clientY)
@@ -267,6 +273,19 @@ export function Canvas() {
     setGesture(null); setGuides([])
   }
 
+  const cancelGesture = () => {
+    if (gesture?.kind === 'move' || gesture?.kind === 'resize' || gesture?.kind === 'rotate') editor.endTransaction()
+    rasterPointsRef.current = []; liveRasterBaseRef.current = null
+    const canvas = liveRasterRef.current
+    canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
+    setGesture(null); setGuides([]); setSpacePressed(false)
+  }
+  useEffect(() => {
+    const blur = () => cancelGesture()
+    window.addEventListener('blur', blur)
+    return () => window.removeEventListener('blur', blur)
+  })
+
   const context = (event: React.MouseEvent, element?: EdonElement) => { event.preventDefault(); event.stopPropagation(); if (element) { const id = element.parentId ?? element.id; if (!editor.selectionIds.includes(id)) editor.select(id) } setContextMenu({ x: event.clientX, y: event.clientY }) }
   const drop = (event: DragEvent) => { event.preventDefault(); const files = [...event.dataTransfer.files].filter((file) => file.type.startsWith('image/')); const point = pointInArtboard(event.clientX, event.clientY); if (!point) return; void Promise.all(files.map((file, index) => imageElementFromFile(file, editor.page, { x: point.x + index * 20, y: point.y + index * 20 }))).then((elements) => elements.forEach(editor.addElement)) }
 
@@ -278,7 +297,7 @@ export function Canvas() {
   const renderOrder = flattenRenderOrder(editor.page.elements)
   const selectionGeometry = descendantsOf(editor.page.elements, editor.selectionIds).filter((element) => element.type !== 'group')
 
-  return <section className="canvas-viewport" ref={viewportRef} style={{ cursor }} onPointerDownCapture={pointerDownCapture} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onContextMenu={(event) => context(event)} onDragOver={(event) => { if ([...event.dataTransfer.items].some((item) => item.type.startsWith('image/'))) event.preventDefault() }} onDrop={drop}>
+  return <section className="canvas-viewport" ref={viewportRef} style={{ cursor }} onPointerDownCapture={pointerDownCapture} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => context(event)} onDragOver={(event) => { if ([...event.dataTransfer.items].some((item) => item.type.startsWith('image/'))) event.preventDefault() }} onDrop={drop}>
     <div className="canvas-ruler canvas-ruler-x" /><div className="canvas-ruler canvas-ruler-y" />
     <div className="canvas-stage" style={{ width: editor.page.width * editor.zoom, height: editor.page.height * editor.zoom, transform: `translate(calc(-50% + ${editor.pan.x}px), calc(-50% + ${editor.pan.y}px))` }}>
       <div ref={artboardRef} className={`canvas-artboard ${editor.silhouettePreview ? 'is-silhouette-preview' : ''}`} style={{ width: editor.page.width, height: editor.page.height, background: editor.page.background, transform: `scale(${editor.zoom})` }}>

@@ -5,8 +5,7 @@ import { booleanElements, canBoolean, type BooleanOperation } from './vector-boo
 import { insertAboveSelection, moveLayer } from './scene-tree'
 
 export type EditorTool = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'image' | 'hand' | 'pencil' | 'pen' | 'brush' | 'eraser' | 'eyedropper' | 'fill'
-export type GapClosing = 'off' | 'small' | 'medium' | 'large'
-export interface ArtToolSettings { color: string; size: number; opacity: number; hardness: number; smoothing: number; stabilization: number; simplify: number; brushPreset: BrushPreset; antiAlias: boolean; fillTolerance: number; gapClosing: GapClosing; contiguous: boolean }
+export interface ArtToolSettings { color: string; size: number; opacity: number; hardness: number; smoothing: number; stabilization: number; simplify: number; brushPreset: BrushPreset; antiAlias: boolean; fillTolerance: number; contiguous: boolean }
 interface HistoryEntry { document: EdonDocument; label: string }
 
 interface EditorState {
@@ -29,6 +28,7 @@ interface EditorState {
 }
 
 type Action =
+  | { type: 'EDIT_PAGE'; pageId: string; update: (elements: EdonElement[]) => EdonElement[]; label: string; live?: boolean; selectionIds?: string[] }
   | { type: 'SET_SELECTION'; ids: string[] }
   | { type: 'SET_TOOL'; tool: EditorTool }
   | { type: 'SET_ZOOM'; zoom: number }
@@ -50,6 +50,11 @@ const touch = (document: EdonDocument, previousRevision = document.revision): Ed
 
 function reducer(state: EditorState, action: Action): EditorState {
   switch (action.type) {
+    case 'EDIT_PAGE': {
+      if (!state.document.pages.some((page) => page.id === action.pageId)) return state
+      const document = { ...state.document, pages: state.document.pages.map((page) => page.id === action.pageId ? { ...page, elements: action.update(page.elements) } : page) }
+      return reducer(state, action.live ? { type: 'LIVE_DOCUMENT', document } : { type: 'COMMIT_DOCUMENT', document, label: action.label, selectionIds: state.document.activePageId === action.pageId ? action.selectionIds : undefined })
+    }
     case 'SET_SELECTION': return { ...state, selectionIds: action.ids }
     case 'SET_TOOL': return { ...state, tool: action.tool }
     case 'SET_ZOOM': return { ...state, zoom: Math.min(8, Math.max(.05, action.zoom)) }
@@ -82,6 +87,9 @@ function reducer(state: EditorState, action: Action): EditorState {
 }
 
 interface EditorContextValue extends EditorState {
+  updateDoc: (html: string) => void
+  switchPage: (id: string) => void
+  addPage: () => void
   page: ReturnType<typeof getActivePage>
   selectedElements: EdonElement[]
   selectedElement: EdonElement | null
@@ -138,7 +146,7 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
     document: initialDocument, selectionIds: [], tool: 'select' as EditorTool, zoom: .5, pan: { x: 0, y: 0 },
     leftPanelOpen: true, rightPanelOpen: true, past: [], future: [], transactionBase: null, transactionLabel: '', canPaste: false,
     silhouettePreview: false, vectorEditId: null, recentColors: [],
-    artSettings: { color: '#171719', size: 6, opacity: 1, hardness: 100, smoothing: 55, stabilization: 35, simplify: 24, brushPreset: 'inking' as BrushPreset, antiAlias: true, fillTolerance: 24, gapClosing: 'medium' as GapClosing, contiguous: true },
+    artSettings: { color: '#171719', size: 6, opacity: 1, hardness: 100, smoothing: 55, stabilization: 35, simplify: 24, brushPreset: 'inking' as BrushPreset, antiAlias: false, fillTolerance: 24, contiguous: true },
   })
   const clipboard = useRef<EdonElement[]>([])
   const pasteCount = useRef(0)
@@ -150,6 +158,9 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
   const commitResult = (result: SceneResult, label: string) => commit(result.document, label, result.selectionIds)
 
   const value: EditorContextValue = {
+    updateDoc: (html) => commit({ ...state.document, pages: state.document.pages.map((item) => item.id === page.id ? { ...item, docHtml: html } : item) }, 'Edit document'),
+    switchPage: (id) => { if (state.document.pages.some((item) => item.id === id)) { commit({ ...state.document, activePageId: id }, 'Switch page', []); dispatch({ type: 'SET_VECTOR_EDIT', id: null }) } },
+    addPage: () => { const id = createId('page'); commit({ ...state.document, activePageId: id, pages: [...state.document.pages, { id, name: `Page ${state.document.pages.length + 1}`, width: page.width, height: page.height, background: page.background, elements: [] }] }, 'Add page', []); dispatch({ type: 'SET_VECTOR_EDIT', id: null }) },
     ...state, page, selectedElements, selectedElement, canBooleanSelection: canBoolean(selectedElements),
     setTool: (tool) => dispatch({ type: 'SET_TOOL', tool }),
     select: (id, additive = false) => {
@@ -164,9 +175,9 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
     togglePanel: (panel) => dispatch({ type: 'TOGGLE_PANEL', panel }),
     renameDocument: (name) => commit({ ...state.document, name }, 'Rename document'),
     renameLayer: (id, name) => commit(renameElement(state.document, id, name), 'Rename layer'),
-    addElement: (element) => commit(updateElements(state.document, (elements) => insertAboveSelection(elements, element, state.selectionIds)), `Create ${element.name}`, [element.id]),
-    removeElement: (id) => commit(updateElements(state.document, (elements) => elements.filter((element) => element.id !== id)), 'Remove empty layer', state.selectionIds.filter((selectionId) => selectionId !== id)),
-    updateElement: (id, patch, live = false) => dispatch({ type: live ? 'LIVE_DOCUMENT' : 'COMMIT_DOCUMENT', document: updateElements(state.document, (elements) => elements.map((element) => element.id === id ? { ...element, ...patch } : element)), ...(live ? {} : { label: 'Edit properties' }) } as Action),
+    addElement: (element) => dispatch({ type: 'EDIT_PAGE', pageId: page.id, update: (elements) => insertAboveSelection(elements, element, state.selectionIds), label: `Create ${element.name}`, selectionIds: [element.id] }),
+    removeElement: (id) => dispatch({ type: 'EDIT_PAGE', pageId: page.id, update: (elements) => elements.filter((element) => element.id !== id), label: 'Remove empty layer', selectionIds: state.selectionIds.filter((selectionId) => selectionId !== id) }),
+    updateElement: (id, patch, live = false) => dispatch({ type: 'EDIT_PAGE', pageId: page.id, update: (elements) => elements.map((element) => element.id === id ? { ...element, ...patch } : element), label: 'Edit properties', live }),
     updateSelected: (patch, live = false) => dispatch({ type: live ? 'LIVE_DOCUMENT' : 'COMMIT_DOCUMENT', document: updateElements(state.document, (elements) => elements.map((element) => state.selectionIds.includes(element.id) ? { ...element, ...patch } : element)), ...(live ? {} : { label: 'Edit selection' }) } as Action),
     mutateElements: (updater, live = false, label = 'Transform selection') => dispatch({ type: live ? 'LIVE_DOCUMENT' : 'COMMIT_DOCUMENT', document: updateElements(state.document, updater), ...(live ? {} : { label }) } as Action),
     removeSelected: () => state.selectionIds.length && commitResult(deleteSelection(state.document, state.selectionIds), 'Delete selection'),
