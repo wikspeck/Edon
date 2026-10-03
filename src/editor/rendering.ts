@@ -2,6 +2,16 @@ import type { CSSProperties } from 'react'
 import type { EdonElement, FillPaint } from '../model/document'
 import { polygonClipPath, starClipPath } from './geometry'
 
+export const outlineFilterId = (elementId: string, effectId: string) => `outline-${elementId.replace(/[^\w-]/g, '')}-${effectId.replace(/[^\w-]/g, '')}`
+
+export function serializeOutlineFilters(element: EdonElement): string {
+  return element.effects.filter((effect) => effect.type === 'outline' && effect.enabled).map((effect) => {
+    if (effect.type !== 'outline') return ''
+    const color = /^#[0-9a-f]{6,8}$/i.test(effect.color) ? effect.color : '#ffffff'
+    return `<filter id="${outlineFilterId(element.id, effect.id)}" x="-100%" y="-100%" width="300%" height="300%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="${Math.max(0, effect.width)}" result="expanded"/><feComposite in="expanded" in2="SourceAlpha" operator="out" result="ring"/><feFlood flood-color="${color}" flood-opacity="${Math.max(0, Math.min(1, effect.opacity))}" result="colour"/><feComposite in="colour" in2="ring" operator="in" result="outline"/><feMerge><feMergeNode in="outline"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`
+  }).join('')
+}
+
 export function cssPaint(paint: FillPaint): string {
   if (paint.type === 'solid') return paint.color
   const stops = [...paint.stops].sort((a, b) => a.offset - b.offset).map((stop) => `${stop.color} ${Math.round(stop.offset * 100)}%`).join(', ')
@@ -35,8 +45,7 @@ export function elementFilter(element: EdonElement): string | undefined {
       for (let pass = 0; pass < passes; pass += 1) addSpread(filters, 0, 0, effect.blur, effect.spread, withOpacity(effect.color, Math.min(1, effect.opacity / Math.sqrt(passes))))
     }
     if (effect.type === 'outline') {
-      const color = withOpacity(effect.color, effect.opacity)
-      for (const [x, y] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-.7, -.7], [.7, -.7], [-.7, .7], [.7, .7]]) filters.push(`drop-shadow(${x * effect.width}px ${y * effect.width}px 0 ${color})`)
+      filters.push(`url("#${outlineFilterId(element.id, effect.id)}")`)
     }
   }
   return filters.length ? filters.join(' ') : undefined

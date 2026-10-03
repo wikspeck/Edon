@@ -1,4 +1,10 @@
-import type { EdonElement } from '../model/document'
+import type { EdonElement, VectorPoint } from '../model/document'
+
+export function pointInElement(element: EdonElement, point: VectorPoint): VectorPoint {
+  const dx = point.x - element.x - element.width / 2; const dy = point.y - element.y - element.height / 2
+  const radians = -element.rotation * Math.PI / 180
+  return { x: (dx * Math.cos(radians) - dy * Math.sin(radians)) / element.scaleX + element.width / 2, y: (dx * Math.sin(radians) + dy * Math.cos(radians)) / element.scaleY + element.height / 2 }
+}
 
 export interface Bounds { x: number; y: number; width: number; height: number; right: number; bottom: number; centerX: number; centerY: number }
 

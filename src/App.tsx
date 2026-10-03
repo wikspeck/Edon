@@ -25,6 +25,8 @@ export default function App() {
 
   const updateProjects = (next: EdonProject[]) => { setProjects(next); saveProjects(next) }
   const moveDocument = (documentId: string, projectId: string | null) => updateProjects(projects.map((project) => { const changed = project.documentIds.includes(documentId) || project.id === projectId; return { ...project, revision: changed ? project.revision + 1 : project.revision, documentIds: project.id === projectId ? [...new Set([documentId, ...project.documentIds])] : project.documentIds.filter((id) => id !== documentId), updatedAt: changed ? new Date().toISOString() : project.updatedAt } }))
+  const trashDocument = (id: string) => persist(documents.map((document) => document.id === id ? { ...document, trashedAt: new Date().toISOString() } : document))
+  const restoreDocument = (id: string) => persist(documents.map((document) => document.id === id ? { ...document, trashedAt: undefined } : document))
 
   const updateDocument = useCallback((updated: EdonDocument) => {
     setDocuments((current) => {
@@ -38,5 +40,5 @@ export default function App() {
     return <EditorView key={activeDocument.id} document={activeDocument} onChange={updateDocument} onBack={() => setActiveId(null)} />
   }
 
-  return <HomeView documents={documents} projects={projects} onProjectsChange={updateProjects} onMoveDocument={moveDocument} onCreate={createDocument} onOpen={(document) => setActiveId(document.id)} />
+  return <HomeView documents={documents} projects={projects} onProjectsChange={updateProjects} onMoveDocument={moveDocument} onCreate={createDocument} onOpen={(document) => setActiveId(document.id)} onTrash={trashDocument} onRestore={restoreDocument} />
 }

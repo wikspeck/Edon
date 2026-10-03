@@ -1,3 +1,4 @@
+import { pointInElement } from './geometry'
 import type { EdonElement, VectorPoint } from '../model/document'
 
 interface AlphaMap { width: number; height: number; alpha: Uint8ClampedArray }
@@ -18,10 +19,7 @@ export function registerAlphaImage(source: string, image: HTMLImageElement) {
 export function alphaHitTest(element: EdonElement, point: VectorPoint): boolean {
   if ((element.type !== 'image' && element.type !== 'raster') || !element.imageUrl) return true
   const map = alphaMaps.get(element.imageUrl); if (!map) return true
-  const centerX = element.x + element.width / 2; const centerY = element.y + element.height / 2; const radians = -element.rotation * Math.PI / 180
-  const rotatedX = centerX + (point.x - centerX) * Math.cos(radians) - (point.y - centerY) * Math.sin(radians)
-  const rotatedY = centerY + (point.x - centerX) * Math.sin(radians) + (point.y - centerY) * Math.cos(radians)
-  const localX = (rotatedX - element.x) / element.scaleX; const localY = (rotatedY - element.y) / element.scaleY
+  const { x: localX, y: localY } = pointInElement(element, point)
   if (localX < 0 || localY < 0 || localX >= element.width || localY >= element.height) return false
   const crop = element.crop ?? { x: 0, y: 0, width: 1, height: 1 }
   const sourceX = Math.min(map.width - 1, Math.max(0, Math.floor((crop.x + localX / element.width * crop.width) * map.width)))

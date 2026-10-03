@@ -1,7 +1,8 @@
 import type { EdonDocument, EdonElement, EdonPage } from '../model/document'
-import { elementFilter, maskClipPath, polygonPoints } from './rendering'
+import { elementFilter, maskClipPath, polygonPoints, serializeOutlineFilters } from './rendering'
 import { descendantsOf } from './geometry'
 import { flattenRenderOrder } from './scene-tree'
+import { cleanDocHtml } from './doc-format'
 
 export type ArtworkFormat = 'png' | 'jpeg' | 'webp' | 'svg'
 export interface ExportOptions { format: ArtworkFormat; scale: 1 | 2 | 4; transparent: boolean; selectionIds?: string[] }
@@ -33,7 +34,8 @@ export async function exportArtwork(document: EdonDocument, options: ExportOptio
 
 export function serializeArtwork(page: EdonPage, elements: EdonElement[], scope = { x: 0, y: 0, width: page.width, height: page.height }, transparent = false): string {
   const included = new Set(elements.map((element) => element.id)); const content = flattenRenderOrder(page.elements).filter((element) => included.has(element.id)).map((element) => serializeElement(element, scope.x, scope.y)).join('')
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${scope.width}" height="${scope.height}" viewBox="0 0 ${scope.width} ${scope.height}">${transparent ? '' : `<rect width="100%" height="100%" fill="${page.background}"/>`}${content}</svg>`
+  const definitions = elements.map(serializeOutlineFilters).join('')
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${scope.width}" height="${scope.height}" viewBox="0 0 ${scope.width} ${scope.height}"><defs>${definitions}</defs>${transparent ? '' : `<rect width="100%" height="100%" fill="${page.background}"/>`}${content}</svg>`
 }
 
 function serializeElement(element: EdonElement, offsetX: number, offsetY: number): string {
@@ -48,7 +50,7 @@ function serializeElement(element: EdonElement, offsetX: number, offsetY: number
   if (element.type === 'polygon' || element.type === 'star') return `<svg ${common} width="${element.width}" height="${element.height}" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="${polygonPoints(element.points, element.type === 'star' ? element.innerRadius : undefined, element.imperfection, element.imperfectionSeed)}" fill="${fill}" ${stroke}/></svg>`
   if (element.type === 'path') return `<svg ${common} width="${element.width}" height="${element.height}" viewBox="0 0 ${element.width} ${element.height}" overflow="visible"><path d="${escapeXml(element.pathData ?? '')}" fill="${fill}" fill-rule="evenodd" ${stroke}/></svg>`
   if (element.type === 'line' || element.type === 'arrow') return `<svg ${common} width="${element.width}" height="${element.height}" viewBox="0 0 100 100" overflow="visible"><line x1="1" y1="50" x2="99" y2="50" ${stroke}/></svg>`
-  if (element.type === 'text') return `<foreignObject ${common} width="${element.width}" height="${element.height}"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:${escapeXml(element.fontFamily ?? 'sans-serif')};font-size:${element.fontSize}px;font-weight:${element.fontWeight};line-height:${element.lineHeight};letter-spacing:${element.letterSpacing}px;color:${fill};white-space:pre-wrap">${escapeXml(element.text ?? '')}</div></foreignObject>`
+  if (element.type === 'text') return `<foreignObject ${common} width="${element.width}" height="${element.height}"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:${escapeXml(element.fontFamily ?? 'sans-serif')};font-size:${element.fontSize}px;font-weight:${element.fontWeight};font-style:${element.italic ? 'italic' : 'normal'};text-decoration:${element.underline ? 'underline' : 'none'};text-align:${element.textAlign ?? 'left'};line-height:${element.lineHeight};letter-spacing:${element.letterSpacing}px;color:${fill};white-space:pre-wrap">${element.textHtml ? cleanDocHtml(element.textHtml).replace(/<br>/g, '<br/>') : escapeXml(element.text ?? '')}</div></foreignObject>`
   if ((element.type === 'image' || element.type === 'raster') && element.imageUrl) {
     const crop = element.crop ?? { x: 0, y: 0, width: 1, height: 1 }
     return `<g ${common}><svg width="${element.width}" height="${element.height}" overflow="${crop.width < 1 || crop.height < 1 ? 'hidden' : 'visible'}"><image x="${-crop.x / crop.width * element.width}" y="${-crop.y / crop.height * element.height}" width="${element.width / crop.width}" height="${element.height / crop.height}" href="${escapeXml(element.imageUrl)}" preserveAspectRatio="${element.type === 'raster' ? 'none' : 'xMidYMid slice'}" style="image-rendering:${element.type === 'raster' ? 'pixelated' : 'auto'}"/></svg></g>`

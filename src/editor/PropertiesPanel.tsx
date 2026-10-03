@@ -1,3 +1,4 @@
+import { TextToolbar } from './TextToolbar'
 import { AlignCenter, AlignHorizontalDistributeCenter, AlignLeft, AlignRight, AlignVerticalDistributeCenter, ArrowDownToLine, ArrowRightToLine, ArrowUpToLine, Blend, ChevronDown, Combine, Group, Layers2, Minus, RotateCw, Sparkles, Trash2, Ungroup, X } from 'lucide-react'
 import { createId, DEFAULT_ADJUSTMENTS, type EdonElement, type ElementEffect, type FillPaint, type ImageAdjustments } from '../model/document'
 import { useEditor } from './editor-state'
@@ -59,10 +60,10 @@ function ElementProperties({ element }: { element: EdonElement }) {
 
 function TypographyProperties({ element, update }: PropertyGroupProps) {
   return <PropertySection title="Typography" open>
-    <label className="text-value-field"><span>Content</span><textarea value={element.text} rows={3} onChange={(event) => update({ text: event.target.value })} /></label>
-    <label className="select-control"><span>Font</span><select value={element.fontFamily} onChange={(event) => update({ fontFamily: event.target.value })}><option value="Inter, ui-sans-serif, system-ui, sans-serif">Inter / System</option><option value="Georgia, serif">Georgia</option><option value="Arial, sans-serif">Arial</option><option value="'Courier New', monospace">Courier New</option></select><ChevronDown size={13} /></label>
-    <div className="property-grid"><NumberField label="Size" value={element.fontSize ?? 16} onChange={(fontSize) => update({ fontSize })} /><NumberField label="Weight" value={element.fontWeight ?? 400} onChange={(fontWeight) => update({ fontWeight })} /><NumberField label="Line height" value={element.lineHeight ?? 1.2} onChange={(lineHeight) => update({ lineHeight })} /><NumberField label="Tracking" value={element.letterSpacing ?? 0} onChange={(letterSpacing) => update({ letterSpacing })} /></div>
-    <div className="text-style-row"><button className={element.italic ? 'is-active' : ''} onClick={() => update({ italic: !element.italic })}><em>I</em></button><button className={element.underline ? 'is-active' : ''} onClick={() => update({ underline: !element.underline })}><u>U</u></button>{(['left', 'center', 'right'] as const).map((alignment) => <button key={alignment} className={element.textAlign === alignment ? 'is-active' : ''} onClick={() => update({ textAlign: alignment })}>{alignment === 'left' ? <AlignLeft size={14} /> : alignment === 'center' ? <AlignCenter size={14} /> : <AlignRight size={14} />}</button>)}</div>
+    <TextToolbar key={`${element.id}-${element.fontFamily}-${element.fontSize}`} element={element} />
+    <label className="text-value-field"><span>Content</span><textarea value={element.text} rows={3} onChange={(event) => update({ text: event.target.value, textHtml: undefined })} /></label>
+    <div className="property-grid"><NumberField label="Line height" value={element.lineHeight ?? 1.2} onChange={(lineHeight) => update({ lineHeight })} /><NumberField label="Tracking" value={element.letterSpacing ?? 0} onChange={(letterSpacing) => update({ letterSpacing })} /></div>
+
   </PropertySection>
 }
 

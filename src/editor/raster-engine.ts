@@ -1,4 +1,5 @@
-import { floodRegion } from './flood-fill'
+import { floodRegion, snapRasterAlpha } from './flood-fill'
+import { pointInElement } from './geometry'
 import { createElement, type EdonElement, type EdonPage, type VectorPoint } from '../model/document'
 import { polygonPoints } from './rendering'
 import type { ArtToolSettings } from './editor-state'
@@ -6,6 +7,43 @@ import { flattenRenderOrder } from './scene-tree'
 import { alignedPixelBounds, paintPixelCells, PIXEL_MODE_CELL_SIZE } from './pixel-grid'
 
 export interface BucketResult { element: EdonElement | null; reason?: string; pixelCount: number }
+
+export async function paintRasterRegion(element: EdonElement, point: VectorPoint, settings: ArtToolSettings): Promise<BucketResult> {
+  if (!element.imageUrl || element.locked) return { element: null, pixelCount: 0, reason: 'This raster layer is locked or empty.' }
+  const image = await loadImage(element.imageUrl)
+  const local = pointInElement(element, point)
+  if (local.x < 0 || local.y < 0 || local.x >= element.width || local.y >= element.height) return { element: null, pixelCount: 0, reason: 'Click inside the raster layer.' }
+  const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight
+  const context = canvas.getContext('2d', { willReadFrequently: true })!; context.imageSmoothingEnabled = false; context.drawImage(image, 0, 0)
+  const source = context.getImageData(0, 0, canvas.width, canvas.height)
+  if (!settings.antiAlias) snapRasterAlpha(source.data)
+  // Fill the original pixel buffer, never a resampled preview or a separate overlay.
+  const x = Math.floor(local.x / element.width * canvas.width); const y = Math.floor(local.y / element.height * canvas.height)
+  const region = floodRegion(source.data, canvas.width, canvas.height, x, y, settings.fillTolerance, settings.contiguous)
+  const color = parseHex(settings.color); let pixelCount = 0
+  for (let index = 0; index < region.length; index++) if (region[index]) {
+    const offset = index * 4; pixelCount++
+    source.data[offset] = color.r; source.data[offset + 1] = color.g; source.data[offset + 2] = color.b; source.data[offset + 3] = Math.round(settings.opacity * color.a * 255)
+  }
+  context.putImageData(source, 0, 0)
+  return { element: { ...element, imageUrl: canvas.toDataURL('image/png') }, pixelCount }
+}
+
+export async function rasterizeElement(page: EdonPage, shape: EdonElement, settings: ArtToolSettings): Promise<EdonElement | null> {
+  const canvas = document.createElement('canvas'); canvas.width = page.width; canvas.height = page.height
+  const context = canvas.getContext('2d', { willReadFrequently: true })!
+  await renderElements(context, [shape], true)
+  if (!settings.antiAlias) {
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height)
+    for (let offset = 3; offset < pixels.data.length; offset += 4) pixels.data[offset] = pixels.data[offset] >= 128 ? 255 : 0
+    context.putImageData(pixels, 0, 0)
+  }
+  const cropped = cropTransparentCanvas(canvas, PIXEL_MODE_CELL_SIZE)
+  if (!cropped) return null
+  const element = createElement('raster', cropped.x, cropped.y, cropped.width, cropped.height)
+  element.name = `Pixel ${shape.name}`; element.imageUrl = cropped.canvas.toDataURL('image/png'); element.opacity = settings.opacity
+  return element
+}
 
 export async function createRasterStroke(page: EdonPage, existing: EdonElement | null, points: VectorPoint[], settings: ArtToolSettings, erase = false): Promise<EdonElement | null> {
   const canvas = document.createElement('canvas'); canvas.width = page.width; canvas.height = page.height
@@ -59,6 +97,7 @@ export async function paintEnclosedRegion(page: EdonPage, point: VectorPoint, se
   context.imageSmoothingEnabled = settings.antiAlias
   await renderElements(context, flattenRenderOrder(page.elements).filter((element) => hierarchyVisible(page.elements, element)), true)
   const source = context.getImageData(0, 0, page.width, page.height)
+  if (!settings.antiAlias) snapRasterAlpha(source.data)
   const region = floodRegion(source.data, page.width, page.height, Math.floor(point.x), Math.floor(point.y), settings.fillTolerance, settings.contiguous)
   const output = context.createImageData(page.width, page.height)
   const color = parseHex(settings.color)

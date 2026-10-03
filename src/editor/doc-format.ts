@@ -1,4 +1,5 @@
 import type { EdonDocument } from '../model/document'
+import { validFontFamily } from './text-style'
 
 // Only retain document formatting; imported HTML cannot execute code or load assets.
 export function cleanDocHtml(html: string): string {
@@ -11,9 +12,20 @@ export function cleanDocHtml(html: string): string {
       clean(child)
       if (!allowed.has(child.tagName)) { child.replaceWith(...child.childNodes); continue }
       const alignment = (child as HTMLElement).style.textAlign
+      const style = (child as HTMLElement).style
+      const family = validFontFamily(style.fontFamily || child.getAttribute('face') || '')
+      const fontSize = /^\d+(\.\d+)?px$/.test(style.fontSize) && parseFloat(style.fontSize) <= 512 ? style.fontSize : ''
+      const weight = ['400', '500', '600', '700', '800', '900', 'bold'].includes(style.fontWeight) ? style.fontWeight : ''
+      const italic = style.fontStyle === 'italic'
+      const underline = style.textDecorationLine.includes('underline')
       const size = child.tagName === 'FONT' ? child.getAttribute('size') : null
       for (const attribute of [...child.attributes]) child.removeAttribute(attribute.name)
       if (['left', 'center', 'right', 'justify'].includes(alignment)) (child as HTMLElement).style.textAlign = alignment
+      if (family) style.fontFamily = family
+      if (fontSize) style.fontSize = fontSize
+      if (weight) style.fontWeight = weight
+      if (italic) style.fontStyle = 'italic'
+      if (underline) style.textDecoration = 'underline'
       if (size && /^[1-7]$/.test(size)) child.setAttribute('size', size)
     }
   }

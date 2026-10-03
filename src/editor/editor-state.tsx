@@ -9,6 +9,8 @@ export interface ArtToolSettings { color: string; size: number; opacity: number;
 interface HistoryEntry { document: EdonDocument; label: string }
 
 interface EditorState {
+  drawingMode: 'vector' | 'pixel'
+  pixelGridVisible: boolean
   document: EdonDocument
   selectionIds: string[]
   tool: EditorTool
@@ -28,6 +30,8 @@ interface EditorState {
 }
 
 type Action =
+  | { type: 'SET_DRAWING_MODE'; mode: 'vector' | 'pixel' }
+  | { type: 'SET_GRID'; visible: boolean }
   | { type: 'EDIT_PAGE'; pageId: string; update: (elements: EdonElement[]) => EdonElement[]; label: string; live?: boolean; selectionIds?: string[] }
   | { type: 'SET_SELECTION'; ids: string[] }
   | { type: 'SET_TOOL'; tool: EditorTool }
@@ -50,6 +54,8 @@ const touch = (document: EdonDocument, previousRevision = document.revision): Ed
 
 function reducer(state: EditorState, action: Action): EditorState {
   switch (action.type) {
+    case 'SET_DRAWING_MODE': return { ...state, drawingMode: action.mode }
+    case 'SET_GRID': return { ...state, pixelGridVisible: action.visible }
     case 'EDIT_PAGE': {
       if (!state.document.pages.some((page) => page.id === action.pageId)) return state
       const document = { ...state.document, pages: state.document.pages.map((page) => page.id === action.pageId ? { ...page, elements: action.update(page.elements) } : page) }
@@ -87,6 +93,8 @@ function reducer(state: EditorState, action: Action): EditorState {
 }
 
 interface EditorContextValue extends EditorState {
+  setDrawingMode: (mode: 'vector' | 'pixel') => void
+  setPixelGridVisible: (visible: boolean) => void
   updateDoc: (html: string) => void
   switchPage: (id: string) => void
   addPage: () => void
@@ -143,6 +151,7 @@ const EditorContext = createContext<EditorContextValue | null>(null)
 
 export function EditorProvider({ initialDocument, children }: { initialDocument: EdonDocument; children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, {
+    drawingMode: 'vector', pixelGridVisible: true,
     document: initialDocument, selectionIds: [], tool: 'select' as EditorTool, zoom: .5, pan: { x: 0, y: 0 },
     leftPanelOpen: true, rightPanelOpen: true, past: [], future: [], transactionBase: null, transactionLabel: '', canPaste: false,
     silhouettePreview: false, vectorEditId: null, recentColors: [],
@@ -158,6 +167,8 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
   const commitResult = (result: SceneResult, label: string) => commit(result.document, label, result.selectionIds)
 
   const value: EditorContextValue = {
+    setDrawingMode: (mode) => dispatch({ type: 'SET_DRAWING_MODE', mode }),
+    setPixelGridVisible: (visible) => dispatch({ type: 'SET_GRID', visible }),
     updateDoc: (html) => commit({ ...state.document, pages: state.document.pages.map((item) => item.id === page.id ? { ...item, docHtml: html } : item) }, 'Edit document'),
     switchPage: (id) => { if (state.document.pages.some((item) => item.id === id)) { commit({ ...state.document, activePageId: id }, 'Switch page', []); dispatch({ type: 'SET_VECTOR_EDIT', id: null }) } },
     addPage: () => { const id = createId('page'); commit({ ...state.document, activePageId: id, pages: [...state.document.pages, { id, name: `Page ${state.document.pages.length + 1}`, width: page.width, height: page.height, background: page.background, elements: [] }] }, 'Add page', []); dispatch({ type: 'SET_VECTOR_EDIT', id: null }) },

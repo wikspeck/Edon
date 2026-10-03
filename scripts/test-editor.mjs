@@ -7,7 +7,7 @@ const load = async (path) => {
   const { outputText } = ts.transpileModule(await readFile(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } })
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 }
-const { floodRegion } = await load('../src/editor/flood-fill.ts')
+const { floodRegion, snapRasterAlpha } = await load('../src/editor/flood-fill.ts')
 const pixels = (values) => new Uint8ClampedArray(values.flatMap((value) => value ? [0, 0, 0, 255] : [255, 255, 255, 255]))
 const fill = (values, width, x, y, contiguous = true) => [...floodRegion(pixels(values), width, values.length / width, x, y, 0, contiguous)]
 assert.deepEqual(fill([0, 0, 0, 0], 2, 0, 0), [1, 1, 1, 1], 'a region touching the page edge must fill')
@@ -19,6 +19,9 @@ const transparent = new Uint8ClampedArray([255, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 
 assert.deepEqual([...floodRegion(transparent, 3, 1, 0, 0, 0, true)], [1, 1, 0], 'hidden RGB does not split transparent regions')
 const close = new Uint8ClampedArray([10, 10, 10, 255, 20, 10, 10, 255, 21, 10, 10, 255])
 assert.deepEqual([...floodRegion(close, 3, 1, 0, 0, 10, true)], [1, 1, 0], 'tolerance is measured from the clicked colour')
+const edgeAlpha = new Uint8ClampedArray([0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 127, 0, 0, 0, 180, 0, 0, 0, 255])
+snapRasterAlpha(edgeAlpha)
+assert.deepEqual([...edgeAlpha].filter((_, index) => index % 4 === 3), [0, 0, 0, 255, 255], 'anti-aliasing off snaps edge coverage to whole pixels')
 const { createDocument, createElement, migrateDocument } = await load('../src/model/document.ts')
 const original = createDocument('Mixed workspace', 100, 100)
 original.pages[0].docHtml = '<h1>Keep my document</h1>'
@@ -36,7 +39,8 @@ try {
   image.effects = [{ id: 'outline', type: 'outline', enabled: true, color: '#ffffff', opacity: 1, width: 4 }]
   original.pages[0].elements = [image]
   const svg = serializeArtwork(original.pages[0], [image])
-  assert.match(svg, /drop-shadow/, 'export includes PNG silhouette effects')
+  assert.match(svg, /feMorphology/, 'export includes a silhouette outline without recursive shadows')
+  assert.match(svg, /operator="out"/, 'outline excludes the original silhouette')
   assert.match(svg, /brightness\(100%\)/, 'export includes image adjustments')
   assert.match(svg, /x="-50" y="0" width="200"/, 'export retains image crop')
   assert.match(svg, /translate\(60 60\) rotate\(0\) scale\(1 1\) translate\(-50 -40\)/, 'export transforms use the same centre as the canvas')

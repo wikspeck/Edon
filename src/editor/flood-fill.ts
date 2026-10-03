@@ -1,4 +1,10 @@
 /** Match the clicked RGBA colour, then visit four-connected pixels (or all matches). */
+export function snapRasterAlpha(data: Uint8ClampedArray) {
+  let maximum = 0
+  for (let offset = 3; offset < data.length; offset += 4) maximum = Math.max(maximum, data[offset])
+  for (let offset = 3; offset < data.length; offset += 4) data[offset] = data[offset] >= maximum / 2 ? maximum : 0
+}
+
 export function floodRegion(data: Uint8ClampedArray, width: number, height: number, x: number, y: number, tolerance: number, contiguous: boolean): Uint8Array {
   const count = width * height
   const region = new Uint8Array(count)

@@ -1,6 +1,6 @@
 import type { VectorPoint } from '../model/document'
 
-export const PIXEL_MODE_CELL_SIZE = 2
+export const PIXEL_MODE_CELL_SIZE = 1
 
 export interface PixelGrid {
   cellSize: number

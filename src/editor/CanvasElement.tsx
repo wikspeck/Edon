@@ -1,4 +1,5 @@
-import { memo, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { cleanDocHtml } from './doc-format'
 import type { EdonElement, GradientStop } from '../model/document'
 import { baseElementStyle, cssPaint, elementFilter, maskClipPath, polygonPoints } from './rendering'
 import { registerAlphaImage } from './alpha-hit-test'
@@ -11,12 +12,18 @@ interface CanvasElementProps {
   hidden?: boolean
   onPointerDown: (event: ReactPointerEvent, element: EdonElement) => void
   onContextMenu: (event: React.MouseEvent, element: EdonElement) => void
-  onTextEdit: (id: string, text: string, width: number, height: number) => void
+  onTextEdit: (id: string, text: string, width: number, height: number, html?: string, keepEditing?: boolean) => void
   onBeginTextEdit: (id: string) => void
   onBeginVectorEdit: (id: string) => void
 }
 
 export const CanvasElement = memo(function CanvasElement({ element, selected, editingText, silhouette, hidden, onPointerDown, onContextMenu, onTextEdit, onBeginTextEdit, onBeginVectorEdit }: CanvasElementProps) {
+  const textRef = useRef<HTMLSpanElement>(null)
+  useLayoutEffect(() => {
+    const html = element.textHtml ? cleanDocHtml(element.textHtml) : (element.text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    if (textRef.current && cleanDocHtml(textRef.current.innerHTML) !== html) textRef.current.innerHTML = html
+  }, [element.text, element.textHtml])
+  useEffect(() => { if (editingText) textRef.current?.focus() }, [editingText])
   if (element.type === 'group') return null
   const paint = silhouette ? '#050506' : cssPaint(element.fillPaint)
   const style: CSSProperties = { ...baseElementStyle(element), filter: silhouette ? undefined : elementFilter(element), clipPath: maskClipPath(element), visibility: hidden ? 'hidden' : undefined }
@@ -24,12 +31,16 @@ export const CanvasElement = memo(function CanvasElement({ element, selected, ed
 
   if (element.type === 'text') return <div {...common} onDoubleClick={(event) => { event.stopPropagation(); onBeginTextEdit(element.id) }}>
     <span
+      ref={textRef}
+      className="canvas-text-content"
       contentEditable={editingText}
       suppressContentEditableWarning
       onPointerDown={(event) => editingText && event.stopPropagation()}
-      onBlur={(event) => onTextEdit(element.id, event.currentTarget.textContent ?? '', Math.max(1, event.currentTarget.scrollWidth), Math.max(1, event.currentTarget.scrollHeight))}
+      onInput={(event) => onTextEdit(element.id, event.currentTarget.innerText, Math.max(1, event.currentTarget.scrollWidth), Math.max(1, event.currentTarget.scrollHeight), cleanDocHtml(event.currentTarget.innerHTML), true)}
+      onBlur={(event) => { if (event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest('.text-format-toolbar')) return; onTextEdit(element.id, event.currentTarget.innerText ?? '', Math.max(1, event.currentTarget.scrollWidth), Math.max(1, event.currentTarget.scrollHeight), cleanDocHtml(event.currentTarget.innerHTML)) }}
+      onPaste={(event) => { if (!editingText) return; event.preventDefault(); const plain = event.clipboardData.getData('text/plain'); document.execCommand('insertHTML', false, cleanDocHtml(event.clipboardData.getData('text/html') || plain.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'))) }}
       style={{ fontFamily: element.fontFamily, fontSize: element.fontSize, fontWeight: element.fontWeight, fontStyle: element.italic ? 'italic' : 'normal', textDecoration: element.underline ? 'underline' : 'none', textAlign: element.textAlign, lineHeight: element.lineHeight, letterSpacing: element.letterSpacing, color: silhouette ? '#050506' : element.fill, justifyContent: verticalJustify(element.verticalAlign), background: !silhouette && element.fillPaint.type !== 'solid' ? paint : undefined, WebkitBackgroundClip: !silhouette && element.fillPaint.type !== 'solid' ? 'text' : undefined, WebkitTextFillColor: !silhouette && element.fillPaint.type !== 'solid' ? 'transparent' : undefined }}
-    >{element.text}</span>
+    />
   </div>
 
   if (element.type === 'image' || element.type === 'raster') {

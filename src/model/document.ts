@@ -65,12 +65,13 @@ export interface EdonElement {
   points?: number
   innerRadius?: number
   text?: string
+  textHtml?: string
   fontFamily?: string
   fontSize?: number
   fontWeight?: number
   italic?: boolean
   underline?: boolean
-  textAlign?: 'left' | 'center' | 'right'
+  textAlign?: 'left' | 'center' | 'right' | 'justify'
   verticalAlign?: 'top' | 'middle' | 'bottom'
   lineHeight?: number
   letterSpacing?: number
@@ -83,7 +84,7 @@ export interface EdonElement {
 }
 
 export interface EdonPage { id: string; name: string; width: number; height: number; background: string; elements: EdonElement[]; docHtml?: string }
-export interface EdonDocument { version: 4; revision: number; id: string; name: string; createdAt: string; updatedAt: string; activePageId: string; pages: EdonPage[]; palette: PaletteColor[] }
+export interface EdonDocument { version: 4; revision: number; id: string; name: string; createdAt: string; updatedAt: string; activePageId: string; pages: EdonPage[]; palette: PaletteColor[]; trashedAt?: string }
 export interface DocumentPreset { id: string; label: string; detail: string; width: number; height: number; unit?: 'px' | 'mm' }
 
 export const DOCUMENT_PRESETS: DocumentPreset[] = [
