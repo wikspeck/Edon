@@ -86,7 +86,7 @@ export interface EdonElement {
 export interface EdonPage { id: string; name: string; width: number; height: number; background: string; elements: EdonElement[]; docHtml?: string }
 export type DocumentKind = 'doc' | 'canvas' | 'music'
 export interface AudioTrack { id: string; assetId: string; name: string; duration: number; bpm: number; beatOffset: number; start: number; end: number; volume: number; low: number; mid: number; high: number }
-export interface MusicSession { tracks: AudioTrack[]; bpm: number; sync: boolean; crossfade: number }
+export interface MusicSession { tracks: AudioTrack[]; bpm: number; sync: boolean; crossfade: number; queue?: string[]; auto?: boolean; transition?: number }
 export interface EdonDocument { version: 4; revision: number; id: string; name: string; createdAt: string; updatedAt: string; activePageId: string; pages: EdonPage[]; palette: PaletteColor[]; trashedAt?: string; kind?: DocumentKind; music?: MusicSession }
 
 export function documentKind(document: EdonDocument): DocumentKind { return document.kind ?? (document.pages.some((page) => page.elements.length) ? 'canvas' : document.pages.some((page) => page.docHtml?.replace(/<[^>]*>/g, '').trim()) ? 'doc' : 'canvas') }

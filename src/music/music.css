@@ -1,0 +1,68 @@
+.music-editor { height:auto; min-height:100vh; overflow:auto; background:#111214; }
+.music-editor button { transition:background .16s ease, transform .16s ease; }
+.music-editor button:hover { background:#35373c; }
+.music-editor button:active { transform:scale(.97); }
+.music-layout { grid-template-columns:minmax(0,1fr) 260px; }
+.music-deck { background:#1b1d20; border:0; border-radius:12px; }
+.music-deck header strong { font-size:14px; }
+.deck-equalizer { gap:22px; padding:18px 10px; }
+.deck-equalizer label { background:#23262a; padding:14px; border-radius:9px; }
+.deck-equalizer input[type=range] { height:30px; cursor:ew-resize; accent-color:#d5dfec; width:100%; }
+.deck-equalizer output { font-variant-numeric:tabular-nums; font-size:16px; color:#e9edf4; }
+.dj-auto-controls { display:flex; align-items:center; gap:14px; padding:10px 0 20px; flex-wrap:wrap; }
+.dj-auto-controls label { display:flex; align-items:center; gap:10px; font-size:12px; }
+.dj-auto-controls input { width:60px; }
+.dj-auto-controls span { color:#9ba1ab; font-size:12px; }
+.dj-auto-controls button[aria-pressed=true] { background:#d9e0e9; color:#111; }
+.dj-helper { padding:16px 20px; margin-top:14px; border-radius:10px; background:#22252a; display:grid; grid-template-columns:1fr auto; gap:8px 20px; }
+.dj-helper p { margin:0; color:#c0c6d0; font-size:13px; grid-column:1; line-height:1.6; }
+.dj-helper small { color:#949ca8; grid-column:1; }
+.dj-helper button { grid-column:2; grid-row:1/4; align-self:center; }
+.dj-library { padding:24px; margin:0 24px 30px; background:#191b1e; border-radius:12px; }
+.dj-library-header, .dj-library-header>div { display:flex; align-items:center; gap:12px; }
+.dj-library-header>div { flex:1; }
+.dj-library small, .dj-library p { color:#929ba8; font-size:12px; }
+.dj-library button { display:inline-flex; align-items:center; gap:6px; background:#292c31; border:0; color:#d9dfe8; border-radius:6px; padding:8px 10px; cursor:pointer; }
+.dj-browser { display:grid; grid-template-columns:170px minmax(350px,1fr) 280px; gap:24px; margin-top:22px; }
+.dj-browser nav>button { display:flex; width:100%; margin-bottom:5px; background:transparent; text-align:left; }
+.dj-browser nav>button.active { background:#343941; }
+.dj-browser nav button span { margin-left:auto; }
+.dj-browser h4 { display:flex; align-items:center; justify-content:space-between; color:#9ca6b3; margin:24px 0 10px; font-size:12px; }
+.dj-search { display:flex; gap:12px; margin-bottom:16px; }
+.dj-search>input { flex:1; min-width:0; }
+.dj-library input, .dj-library textarea { background:#24272b; border:0; color:#e4e8ef; padding:10px; border-radius:6px; }
+.dj-column-labels, .dj-song { display:grid; grid-template-columns:minmax(140px,1fr) 60px 100px 65px 110px; align-items:center; gap:12px; }
+.dj-column-labels { color:#8c95a2; font-size:11px; padding:10px; }
+.dj-song { padding:10px; border-radius:6px; font-size:12px; cursor:grab; transition:background .18s ease; }
+.dj-song:hover, .dj-song.selected { background:#2b3037; }
+.dj-song strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; }
+.dj-song>div { display:flex; gap:4px; }
+.dj-song button { padding:6px; }
+.energy-meter { position:relative; background:#30363e; border-radius:3px; text-align:center; overflow:hidden; }
+.energy-meter i { position:absolute; left:0; top:0; bottom:0; background:#66788a66; }
+.dj-drop { padding:50px 10px; display:flex; flex-direction:column; align-items:center; gap:10px; color:#a3afbe; }
+.dj-queue h3 { display:flex; justify-content:space-between; margin:0; font-size:14px; }
+.queue-song { display:flex; gap:6px; align-items:center; background:#25292e; padding:10px; margin:8px 0; border-radius:7px; cursor:grab; animation:queue-enter .18s ease; }
+.queue-song strong { flex:1; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.queue-song button { padding:3px; }
+.playlist-details, .dj-song-notes { background:#202329; padding:14px; border-radius:8px; margin-bottom:14px; display:flex; flex-wrap:wrap; gap:10px; }
+.playlist-details textarea, .dj-song-notes textarea { width:100%; resize:vertical; min-height:60px; }
+.dj-song-notes { margin-top:18px; }
+.dj-song-notes>label { width:100%; }
+.dj-song-notes>div { display:flex; gap:20px; }
+.dj-song-notes input[type=number] { width:75px; }
+@keyframes queue-enter { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+@media (max-width:1100px) { .music-layout { grid-template-columns:1fr; } .spotify-library { display:none; } .dj-browser { grid-template-columns:140px minmax(0,1fr); } .dj-queue { grid-column:1/-1; } .dj-library-header { flex-wrap:wrap; } }
+@media (max-width:720px) { .dj-browser { display:block; } .dj-browser nav { margin-bottom:20px; } .dj-library { margin:0 8px 20px; padding:12px; } .dj-column-labels,.dj-song { grid-template-columns:minmax(80px,1fr) 45px 75px 90px; gap:5px; } .dj-song .energy-meter,.dj-column-labels>span:nth-child(4) { display:none; } .dj-helper { display:block; } .dj-helper button { margin-top:10px; } }
+@media(prefers-reduced-motion:reduce) { .music-editor * { animation:none!important; transition:none!important; } }
+.music-editor .music-layout { flex:none; overflow:visible; }
+.music-editor .music-workspace { overflow:visible; }
+.deck-timing summary { padding:14px 18px; color:#9fa8b4; cursor:pointer; }
+.music-editor .deck-equalizer label { grid-template-columns:95px minmax(0,1fr) 65px; }
+.music-editor .dj-song-notes input[type=number] { width:75px; }
+.dj-library-header small { display:block; }
+.music-editor { height:100dvh; min-height:0; display:block; overflow:auto; }
+.music-topbar { position:sticky; top:0; z-index:5; }
+@media (min-width:720px) { .music-editor .music-decks { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:1100px) { .music-editor .deck-equalizer label { grid-template-columns:65px minmax(0,1fr) 50px; gap:5px; padding:10px; } .music-editor .deck-equalizer output { font-size:12px; } }
+.backup-download { color:#e2e9f3; margin-left:12px; text-decoration:underline; }
