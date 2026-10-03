@@ -85,7 +85,7 @@ export interface EdonElement {
 
 export interface EdonPage { id: string; name: string; width: number; height: number; background: string; elements: EdonElement[]; docHtml?: string }
 export type DocumentKind = 'doc' | 'canvas' | 'music'
-export interface AudioTrack { id: string; assetId: string; name: string; duration: number; bpm: number; beatOffset: number; start: number; end: number; volume: number; low: number; mid: number; high: number }
+export interface AudioTrack { id: string; assetId: string; name: string; duration: number; bpm: number; beatOffset: number; start: number; end: number; volume: number; low: number; mid: number; high: number; deck?: 0 | 1; filter?: number; resonance?: number; echo?: number; reverb?: number; pan?: number; cue?: number; loopBeats?: number }
 export interface MusicSession { tracks: AudioTrack[]; bpm: number; sync: boolean; crossfade: number; queue?: string[]; auto?: boolean; transition?: number }
 export interface EdonDocument { version: 4; revision: number; id: string; name: string; createdAt: string; updatedAt: string; activePageId: string; pages: EdonPage[]; palette: PaletteColor[]; trashedAt?: string; kind?: DocumentKind; music?: MusicSession }
 
@@ -119,7 +119,7 @@ export const DEFAULT_PALETTE: PaletteColor[] = [
 export function createDocument(name: string, width: number, height: number, kind: DocumentKind = 'canvas'): EdonDocument {
   const timestamp = new Date().toISOString()
   const pageId = createId('page')
-  return { version: 4, revision: 1, kind, id: createId('doc'), name: name.trim() || 'Untitled', createdAt: timestamp, updatedAt: timestamp, activePageId: pageId, pages: [{ id: pageId, name: 'Page 1', width, height, background: '#ffffff', elements: [] }], palette: DEFAULT_PALETTE.map((color) => ({ ...color })), ...(kind === 'music' ? { music: { tracks: [], bpm: 120, sync: true, crossfade: 0 } } : {}) }
+  return { version: 4, revision: 1, kind, id: createId('doc'), name: name.trim() || 'Untitled', createdAt: timestamp, updatedAt: timestamp, activePageId: pageId, pages: [{ id: pageId, name: 'Page 1', width, height, background: '#ffffff', elements: [] }], palette: DEFAULT_PALETTE.map((color) => ({ ...color })), ...(kind === 'music' ? { music: { tracks: [], bpm: 120, sync: false, crossfade: -1 } } : {}) }
 }
 
 export function createElement(type: ElementType, x: number, y: number, width?: number, height?: number): EdonElement {
