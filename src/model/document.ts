@@ -26,7 +26,7 @@ export interface ImageAdjustments {
 
 export interface ElementMask {
   id: string; type: 'shape'; shape: 'rectangle' | 'rounded-rectangle' | 'ellipse' | 'polygon' | 'star'
-  cornerRadius: number; sides: number; inset: number; inverted: boolean
+  cornerRadius: number; sides: number; inset: number; inverted: boolean; pathData?: string
 }
 
 export interface CropRect { x: number; y: number; width: number; height: number }
@@ -84,7 +84,12 @@ export interface EdonElement {
 }
 
 export interface EdonPage { id: string; name: string; width: number; height: number; background: string; elements: EdonElement[]; docHtml?: string }
-export interface EdonDocument { version: 4; revision: number; id: string; name: string; createdAt: string; updatedAt: string; activePageId: string; pages: EdonPage[]; palette: PaletteColor[]; trashedAt?: string }
+export type DocumentKind = 'doc' | 'canvas' | 'music'
+export interface AudioTrack { id: string; assetId: string; name: string; duration: number; bpm: number; beatOffset: number; start: number; end: number; volume: number; low: number; mid: number; high: number }
+export interface MusicSession { tracks: AudioTrack[]; bpm: number; sync: boolean; crossfade: number }
+export interface EdonDocument { version: 4; revision: number; id: string; name: string; createdAt: string; updatedAt: string; activePageId: string; pages: EdonPage[]; palette: PaletteColor[]; trashedAt?: string; kind?: DocumentKind; music?: MusicSession }
+
+export function documentKind(document: EdonDocument): DocumentKind { return document.kind ?? (document.pages.some((page) => page.elements.length) ? 'canvas' : document.pages.some((page) => page.docHtml?.replace(/<[^>]*>/g, '').trim()) ? 'doc' : 'canvas') }
 export interface DocumentPreset { id: string; label: string; detail: string; width: number; height: number; unit?: 'px' | 'mm' }
 
 export const DOCUMENT_PRESETS: DocumentPreset[] = [
@@ -111,16 +116,16 @@ export const DEFAULT_PALETTE: PaletteColor[] = [
   { id: 'field-green', name: 'Field Green', color: '#397A59' },
 ]
 
-export function createDocument(name: string, width: number, height: number): EdonDocument {
+export function createDocument(name: string, width: number, height: number, kind: DocumentKind = 'canvas'): EdonDocument {
   const timestamp = new Date().toISOString()
   const pageId = createId('page')
-  return { version: 4, revision: 1, id: createId('doc'), name: name.trim() || 'Untitled', createdAt: timestamp, updatedAt: timestamp, activePageId: pageId, pages: [{ id: pageId, name: 'Page 1', width, height, background: '#ffffff', elements: [] }], palette: DEFAULT_PALETTE.map((color) => ({ ...color })) }
+  return { version: 4, revision: 1, kind, id: createId('doc'), name: name.trim() || 'Untitled', createdAt: timestamp, updatedAt: timestamp, activePageId: pageId, pages: [{ id: pageId, name: 'Page 1', width, height, background: '#ffffff', elements: [] }], palette: DEFAULT_PALETTE.map((color) => ({ ...color })), ...(kind === 'music' ? { music: { tracks: [], bpm: 120, sync: true, crossfade: 0 } } : {}) }
 }
 
 export function createElement(type: ElementType, x: number, y: number, width?: number, height?: number): EdonElement {
   const labels: Record<ElementType, string> = { group: 'Group', frame: 'Frame', rectangle: 'Rectangle', ellipse: 'Ellipse', line: 'Line', arrow: 'Arrow', polygon: 'Polygon', star: 'Star', path: 'Path', text: 'Text', image: 'Image', raster: 'Raster layer' }
   const isLine = type === 'line' || type === 'arrow'
-  const fill = type === 'text' ? '#171719' : type === 'frame' ? '#ffffff' : type === 'ellipse' ? '#7c70ff' : isLine || type === 'image' || type === 'raster' ? '#00000000' : '#2d2d31'
+  const fill = type === 'text' ? '#171719' : type === 'frame' ? '#ffffff' : type === 'ellipse' ? '#b0b0b0' : isLine || type === 'image' || type === 'raster' ? '#00000000' : '#2d2d31'
   const radius = type === 'rectangle' ? 8 : 0
   const resolvedWidth = width ?? (type === 'text' ? 180 : type === 'image' || type === 'raster' ? 320 : isLine ? 180 : 160)
   const resolvedHeight = height ?? (type === 'text' ? 44 : type === 'image' || type === 'raster' ? 240 : isLine ? 24 : 120)

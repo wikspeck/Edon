@@ -1,7 +1,8 @@
+import { MusicEditor } from './music/MusicEditor'
 import { useCallback, useState } from 'react'
 import { EditorView } from './editor/EditorView'
 import { HomeView } from './home/HomeView'
-import type { EdonDocument } from './model/document'
+import { documentKind, type EdonDocument } from './model/document'
 import { loadDocuments, saveDocuments } from './storage/documents'
 import type { EdonProject } from './model/project'
 import { loadProjects, saveProjects } from './storage/projects'
@@ -9,7 +10,7 @@ import { loadProjects, saveProjects } from './storage/projects'
 export default function App() {
   const [documents, setDocuments] = useState<EdonDocument[]>(loadDocuments)
   const [projects, setProjects] = useState<EdonProject[]>(loadProjects)
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(() => /[?&](code|error)=/.test(location.search) ? sessionStorage.getItem('edon.spotify.document') : null)
   const activeDocument = documents.find((document) => document.id === activeId)
 
   const persist = useCallback((next: EdonDocument[]) => {
@@ -37,6 +38,7 @@ export default function App() {
   }, [])
 
   if (activeDocument) {
+    if (documentKind(activeDocument) === 'music') return <MusicEditor key={activeDocument.id} document={activeDocument} onChange={updateDocument} onBack={() => setActiveId(null)} />
     return <EditorView key={activeDocument.id} document={activeDocument} onChange={updateDocument} onBack={() => setActiveId(null)} />
   }
 

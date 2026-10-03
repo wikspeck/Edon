@@ -24,3 +24,13 @@ npm run deploy:dry-run
 ```
 
 The production SPA is emitted to `dist/` and deployed as Cloudflare Worker static assets through `wrangler.jsonc`.
+
+## Editors and audio
+
+Choose Canvas, Document, or Music when creating a file. File types are fixed. Older mixed files keep their contents; “Open document copy” extracts their text into a separate Document file.
+
+Music supports two locally imported tracks, independent trim ranges and first-beat offsets, manually entered BPM, shared playback, an equal-power crossfader, three-band EQ, and stereo WAV export (up to 30 minutes). BPM sync uses playback-rate changes, which also change pitch. Audio blobs persist in IndexedDB in the current browser; session settings persist with the file. Spotify audio is never routed through the mixer or included in WAV exports.
+
+The Spotify integration uses Authorization Code with PKCE, the Web API, and the Web Playback SDK. Register both `https://edon.wik-speck.workers.dev/` and `http://127.0.0.1:5173/` as Redirect URIs, including the trailing slash, and enable Web API and Web Playback SDK in the Spotify app. The public Client ID is configured in `src/music/spotify.ts`; no Client Secret is needed. Account login, app development-mode access, and Premium streaming must be tested with the account owner. Spotify song embeds also work without an API login. Spotify playback and the local mixer are mutually exclusive.
+
+Browser regressions: open `/scripts/editor-browser-tests.html` on the Vite development server to run actual raster, Boolean, mask-export, and Web Audio checks. This test page is excluded from the production bundle.

@@ -1,3 +1,4 @@
+import { serializeMask } from './masks'
 import type { EdonDocument, EdonElement, EdonPage } from '../model/document'
 import { elementFilter, maskClipPath, polygonPoints, serializeOutlineFilters } from './rendering'
 import { descendantsOf } from './geometry'
@@ -34,7 +35,7 @@ export async function exportArtwork(document: EdonDocument, options: ExportOptio
 
 export function serializeArtwork(page: EdonPage, elements: EdonElement[], scope = { x: 0, y: 0, width: page.width, height: page.height }, transparent = false): string {
   const included = new Set(elements.map((element) => element.id)); const content = flattenRenderOrder(page.elements).filter((element) => included.has(element.id)).map((element) => serializeElement(element, scope.x, scope.y)).join('')
-  const definitions = elements.map(serializeOutlineFilters).join('')
+  const definitions = elements.map((element) => serializeOutlineFilters(element) + serializeMask(element)).join('')
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${scope.width}" height="${scope.height}" viewBox="0 0 ${scope.width} ${scope.height}"><defs>${definitions}</defs>${transparent ? '' : `<rect width="100%" height="100%" fill="${page.background}"/>`}${content}</svg>`
 }
 

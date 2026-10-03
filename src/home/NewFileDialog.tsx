@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check, Monitor, RectangleHorizontal, RectangleVertical, X } from 'lucide-react'
-import { DOCUMENT_PRESETS, type EdonDocument } from '../model/document'
+import { DOCUMENT_PRESETS, type DocumentKind, type EdonDocument } from '../model/document'
 import { createDocument } from '../model/document'
 import { IconButton } from '../ui/IconButton'
 
@@ -11,6 +11,7 @@ interface NewFileDialogProps {
 
 export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const [kind, setKind] = useState<DocumentKind>('canvas')
   const [name, setName] = useState('Untitled')
   const [width, setWidth] = useState(1920)
   const [height, setHeight] = useState(1080)
@@ -38,7 +39,7 @@ export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
-    onCreate(createDocument(name, width, height))
+    onCreate(createDocument(name, width, height, kind))
   }
 
   return (
@@ -47,13 +48,14 @@ export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
         <header className="dialog-header">
           <div>
             <p className="eyebrow">New document</p>
-            <h2>Choose a canvas</h2>
+            <h2>Create a file</h2>
           </div>
           <IconButton label="Close dialog" onClick={onClose}><X size={16} /></IconButton>
         </header>
 
-        <div className="dialog-body">
-          <section className="preset-section" aria-label="Canvas presets">
+        <div className="file-kind-picker" aria-label="File type">{(['canvas', 'doc', 'music'] as const).map((value) => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { setKind(value); if (value === 'doc') setPreset('a4') }}>{value === 'doc' ? 'Document' : value === 'music' ? 'Music' : 'Canvas'}</button>)}</div>
+        <div className={`dialog-body ${kind === 'music' ? 'music-create' : ''}`}>
+          <section style={{ display: kind === 'music' ? 'none' : undefined }} className="preset-section" aria-label="Canvas presets">
             <div className="section-label">Presets</div>
             <div className="preset-grid">
               {DOCUMENT_PRESETS.map((preset) => (
@@ -83,7 +85,7 @@ export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
               <span>Name</span>
               <input value={name} onChange={(event) => setName(event.target.value)} autoFocus />
             </label>
-            <div className="dimension-fields">
+            <div className="dimension-fields" style={{ display: kind === 'music' ? 'none' : undefined }}>
               <label className="field-stack">
                 <span>Width</span>
                 <div className="unit-input"><input type="number" value={width} min={16} max={8192} onChange={(event) => setDimension('width', event.target.value)} /><em>px</em></div>
@@ -93,11 +95,11 @@ export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
                 <div className="unit-input"><input type="number" value={height} min={16} max={8192} onChange={(event) => setDimension('height', event.target.value)} /><em>px</em></div>
               </label>
             </div>
-            <div className="orientation-control" aria-label="Orientation">
+            <div style={{ display: kind === 'music' ? 'none' : undefined }} className="orientation-control" aria-label="Orientation">
               <button type="button" className={width >= height ? 'is-active' : ''} onClick={() => width < height && [setWidth(height), setHeight(width)]}><RectangleHorizontal size={15} /> Landscape</button>
               <button type="button" className={height > width ? 'is-active' : ''} onClick={() => height < width && [setWidth(height), setHeight(width)]}><RectangleVertical size={15} /> Portrait</button>
             </div>
-            <div className="canvas-summary">
+            <div style={{ display: kind === 'music' ? 'none' : undefined }} className="canvas-summary">
               <div className="summary-sheet" style={{ aspectRatio: `${width} / ${height}` }} />
               <div><strong>{width} × {height}</strong><span>RGB · 72 PPI</span></div>
             </div>
@@ -105,7 +107,7 @@ export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
         </div>
 
         <footer className="dialog-footer">
-          <span>Canvas settings can be changed later.</span>
+          <span>The file type is fixed. Create a separate file for another editor.</span>
           <div className="dialog-actions">
             <button type="button" className="button-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="button-primary">Create file <ArrowRight size={15} /></button>

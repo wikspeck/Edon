@@ -10,9 +10,11 @@ export function LayersPanel() {
   const editor = useEditor(); const lastSelected = useRef<string | null>(null)
   const roots = [...sceneChildren(editor.page.elements, null)].reverse(); const displayOrder = visibleLayerOrder(editor.page.elements)
   const selectLayer = (id: string, event: MouseEvent) => {
-    if (event.shiftKey && lastSelected.current) {
-      const from = displayOrder.findIndex((element) => element.id === lastSelected.current); const to = displayOrder.findIndex((element) => element.id === id)
+    const anchor = lastSelected.current ?? editor.selectionIds.at(-1)
+    if (event.shiftKey && anchor) {
+      const from = displayOrder.findIndex((element) => element.id === anchor); const to = displayOrder.findIndex((element) => element.id === id)
       if (from >= 0 && to >= 0) editor.selectMany(displayOrder.slice(Math.min(from, to), Math.max(from, to) + 1).map((element) => element.id))
+      else editor.select(id, true)
     } else editor.select(id, event.ctrlKey || event.metaKey)
     lastSelected.current = id
   }

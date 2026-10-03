@@ -22,7 +22,21 @@ assert.deepEqual([...floodRegion(close, 3, 1, 0, 0, 10, true)], [1, 1, 0], 'tole
 const edgeAlpha = new Uint8ClampedArray([0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 127, 0, 0, 0, 180, 0, 0, 0, 255])
 snapRasterAlpha(edgeAlpha)
 assert.deepEqual([...edgeAlpha].filter((_, index) => index % 4 === 3), [0, 0, 0, 255, 255], 'anti-aliasing off snaps edge coverage to whole pixels')
-const { createDocument, createElement, migrateDocument } = await load('../src/model/document.ts')
+const { createDocument, createElement, migrateDocument, documentKind } = await load('../src/model/document.ts')
+assert.equal(documentKind(createDocument('Doc', 794, 1123, 'doc')), 'doc')
+assert.equal(documentKind(createDocument('Music', 100, 100, 'music')), 'music')
+const { playbackRate, trackStart, trackDuration, trackGain, encodeWav } = await load('../src/music/audio-engine.ts')
+const session = { bpm: 120, sync: true, crossfade: 0, tracks: [] }
+const audio = { bpm: 90, beatOffset: .1, start: .3, end: 8, volume: 1 }
+assert.equal(playbackRate(audio, session), 4 / 3, 'BPM sync uses each source tempo')
+assert.ok(Math.abs(trackStart(audio, session) - (.1 + 2 / 3)) < 1e-9, 'trim starts on a source beat')
+assert.ok(Math.abs(trackDuration(audio, session) - (8 - trackStart(audio, session)) / (4 / 3)) < 1e-9)
+assert.equal(trackGain(1, audio, { ...session, crossfade: -1 }), 0, 'crossfader A mutes B')
+assert.ok(trackGain(0, audio, { ...session, crossfade: 1 }) < 1e-9, 'crossfader B mutes A')
+const wav = await encodeWav({ numberOfChannels: 1, length: 2, sampleRate: 44100, getChannelData: () => new Float32Array([-1, 1]) }).arrayBuffer()
+assert.equal(new DataView(wav).getUint32(40, true), 4, 'WAV data length is valid')
+assert.equal(new DataView(wav).getInt16(44, true), -32768, 'WAV negative sample is preserved')
+assert.equal(new DataView(wav).getInt16(46, true), 32767, 'WAV positive sample is preserved')
 const original = createDocument('Mixed workspace', 100, 100)
 original.pages[0].docHtml = '<h1>Keep my document</h1>'
 original.pages[0].elements.push(createElement('rectangle', 10, 20))

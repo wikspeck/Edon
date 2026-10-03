@@ -1,3 +1,4 @@
+import { maskPath } from './masks'
 import { floodRegion, snapRasterAlpha } from './flood-fill'
 import { pointInElement } from './geometry'
 import { createElement, type EdonElement, type EdonPage, type VectorPoint } from '../model/document'
@@ -129,6 +130,7 @@ async function renderElements(context: CanvasRenderingContext2D, elements: EdonE
   for (const element of elements) {
     if (element.type === 'group') continue
     context.save(); context.globalAlpha = element.opacity; context.translate(element.x + element.width / 2, element.y + element.height / 2); context.rotate(element.rotation * Math.PI / 180); context.scale(element.scaleX, element.scaleY); context.translate(-element.width / 2, -element.height / 2)
+    if (element.mask) { context.save(); context.scale(element.width, element.height); const clip = new Path2D(maskPath(element)); context.clip(clip, 'evenodd'); context.scale(1 / element.width, 1 / element.height) }
     const fill = colors ? element.fill : '#ffffff'; const stroke = colors ? element.stroke : '#ffffff'; context.fillStyle = fill; context.strokeStyle = stroke; context.lineWidth = Math.max(1, element.strokeWidth); context.lineCap = element.strokeCap ?? 'round'; context.lineJoin = element.strokeJoin ?? 'round'
     if ((element.type === 'image' || element.type === 'raster') && element.imageUrl) context.drawImage(await loadImage(element.imageUrl), 0, 0, element.width, element.height)
     else if (element.type === 'path' && element.pathData) { const path = new Path2D(element.pathData); if (element.closed || element.fill !== '#00000000') context.fill(path, 'evenodd'); if (element.strokeWidth) context.stroke(path) }
@@ -137,6 +139,7 @@ async function renderElements(context: CanvasRenderingContext2D, elements: EdonE
     else if (element.type === 'polygon' || element.type === 'star') { const points = polygonPoints(element.points, element.type === 'star' ? element.innerRadius : undefined).split(' ').map((pair) => pair.split(',').map(Number)); context.beginPath(); points.forEach(([x, y], index) => (index ? context.lineTo(x / 100 * element.width, y / 100 * element.height) : context.moveTo(x / 100 * element.width, y / 100 * element.height))); context.closePath(); context.fill(); if (element.strokeWidth) context.stroke() }
     else if (element.type === 'line' || element.type === 'arrow') { context.beginPath(); context.moveTo(0, element.height / 2); context.lineTo(element.width, element.height / 2); context.stroke() }
     else if (element.type === 'text') { context.font = `${element.fontWeight ?? 400} ${element.fontSize ?? 16}px ${element.fontFamily ?? 'sans-serif'}`; context.textBaseline = 'top'; context.fillText(element.text ?? '', 0, 0) }
+    if (element.mask) context.restore()
     context.restore()
   }
 }

@@ -1,6 +1,6 @@
+import { maskId } from './masks'
 import type { CSSProperties } from 'react'
 import type { EdonElement, FillPaint } from '../model/document'
-import { polygonClipPath, starClipPath } from './geometry'
 
 export const outlineFilterId = (elementId: string, effectId: string) => `outline-${elementId.replace(/[^\w-]/g, '')}-${effectId.replace(/[^\w-]/g, '')}`
 
@@ -57,14 +57,7 @@ function addSpread(filters: string[], offsetX: number, offsetY: number, blur: nu
 }
 
 export function maskClipPath(element: EdonElement): string | undefined {
-  const mask = element.mask
-  if (!mask) return undefined
-  const inset = Math.max(0, Math.min(45, mask.inset))
-  if (mask.shape === 'ellipse') return `ellipse(${50 - inset}% ${50 - inset}% at 50% 50%)`
-  if (mask.shape === 'polygon') return `polygon(${polygonClipPath(mask.sides)})`
-  if (mask.shape === 'star') return `polygon(${starClipPath(mask.sides, .48)})`
-  if (mask.shape === 'rounded-rectangle') return `inset(${inset}% round ${mask.cornerRadius}px)`
-  return `inset(${inset}%)`
+  return element.mask ? `url("#${maskId(element)}")` : undefined
 }
 
 export function baseElementStyle(element: EdonElement): CSSProperties {

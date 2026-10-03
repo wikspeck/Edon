@@ -1,3 +1,4 @@
+import { MaskDefinition } from './MaskDefinition'
 import { ImageOutline } from './ImageOutline'
 import { useEffect, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { Crosshair, Move, MousePointer2 } from 'lucide-react'
@@ -26,7 +27,7 @@ type Gesture =
   | { kind: 'pencil'; points: Point[] }
   | { kind: 'raster'; erase: boolean; targetId: string | null }
 
-export function Canvas({ onSwitchWorkspace }: { onSwitchWorkspace?: (mode: 'doc' | 'canvas') => void }) {
+export function Canvas() {
   const editor = useEditor()
   const viewportRef = useRef<HTMLDivElement>(null)
   const artboardRef = useRef<HTMLDivElement>(null)
@@ -93,7 +94,7 @@ export function Canvas({ onSwitchWorkspace }: { onSwitchWorkspace?: (mode: 'doc'
     else if (event.button === 1) startViewportPan(event)
   }
   const startRasterGesture = (event: ReactPointerEvent, point: Point, erase: boolean) => {
-    const existing = editor.selectedElement?.type === 'raster' ? editor.selectedElement : erase ? [...flattenRenderOrder(editor.page.elements)].reverse().find((element) => element.type === 'raster') ?? null : null
+    const existing = erase ? (editor.selectedElement?.type === 'raster' ? editor.selectedElement : [...flattenRenderOrder(editor.page.elements)].reverse().find((element) => element.type === 'raster' && element.visible && !element.locked) ?? null) : null
     const canvas = liveRasterRef.current; if (!canvas) return
     canvas.width = editor.page.width; canvas.height = editor.page.height
     const base = document.createElement('canvas'); base.width = editor.page.width; base.height = editor.page.height
@@ -320,6 +321,7 @@ export function Canvas({ onSwitchWorkspace }: { onSwitchWorkspace?: (mode: 'doc'
     <div className="canvas-ruler canvas-ruler-x" /><div className="canvas-ruler canvas-ruler-y" />
     <div className="canvas-stage" style={{ width: editor.page.width * editor.zoom, height: editor.page.height * editor.zoom, transform: `translate(calc(-50% + ${editor.pan.x}px), calc(-50% + ${editor.pan.y}px))` }}>
       <div ref={artboardRef} className={`canvas-artboard ${editor.silhouettePreview ? 'is-silhouette-preview' : ''}`} style={{ width: editor.page.width, height: editor.page.height, background: editor.page.background, transform: `scale(${editor.zoom})` }}>
+        {renderOrder.map((element) => <MaskDefinition key={`mask-${element.id}`} element={element} />)}
         {renderOrder.map((element) => <ImageOutline key={`effects-${element.id}`} element={element} />)}
         {renderOrder.map((element) => isHierarchyVisible(element, elementMap) && <CanvasElement key={element.id} element={isHierarchyLocked(element, elementMap) ? { ...element, locked: true } : element} selected={editor.selectionIds.includes(element.id) || Boolean(element.parentId && editor.selectionIds.includes(element.parentId))} editingText={editingTextId === element.id} silhouette={editor.silhouettePreview} hidden={gesture?.kind === 'raster' && gesture.targetId === element.id} onPointerDown={elementPointerDown} onContextMenu={context} onBeginTextEdit={setEditingTextId} onBeginVectorEdit={(id) => { editor.select(id); editor.setVectorEdit(id) }} onTextEdit={(id, text, width, height, html, keepEditing) => { editor.updateElement(id, { text, textHtml: html, width, height }); if (!keepEditing) setEditingTextId(null) }} />)}
         <canvas ref={liveRasterRef} className={`live-raster-canvas ${gesture?.kind === 'raster' ? 'is-active' : ''} ${editor.artSettings.antiAlias ? '' : 'is-pixel-mode'}`} />
@@ -333,7 +335,7 @@ export function Canvas({ onSwitchWorkspace }: { onSwitchWorkspace?: (mode: 'doc'
         {guides.map((guide, index) => <i key={`${guide.axis}-${guide.value}-${index}`} className={`snap-guide guide-${guide.axis}`} style={guide.axis === 'x' ? { left: guide.value, width: 1 / editor.zoom } : { top: guide.value, height: 1 / editor.zoom }} />)}
       </div>
     </div>
-    {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onSwitchWorkspace={onSwitchWorkspace} />}
+    {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} />}
     {editor.tool === 'eyedropper' && cursorPoint && <div className="eyedropper-cursor-preview" style={{ left: cursorPoint.x + 14, top: cursorPoint.y + 14, background: editor.artSettings.color }} />}
     {(editor.tool === 'brush' || editor.tool === 'eraser') && cursorPoint && !gesture && <div className="brush-cursor-preview" style={{ left: cursorPoint.x, top: cursorPoint.y, width: editor.artSettings.size * editor.zoom, height: editor.artSettings.size * editor.zoom }} />}
     {notice && <div className="canvas-notice">{notice}</div>}

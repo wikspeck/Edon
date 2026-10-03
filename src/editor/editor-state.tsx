@@ -1,7 +1,7 @@
 import { createContext, useContext, useReducer, useRef, type ReactNode } from 'react'
 import { createId, getActivePage, type BrushPreset, type EdonDocument, type EdonElement, type ElementType, type PaletteColor } from '../model/document'
 import { alignSelection, copyPayload, deleteSelection, distributeSelection, duplicateSelection, groupSelection, pastePayload, renameElement, reorderSelection, ungroupSelection, updateElements, type AlignMode, type DistributeMode, type LayerOrder, type SceneResult } from './scene-commands'
-import { booleanElements, canBoolean, type BooleanOperation } from './vector-boolean'
+import { booleanSelection, canBoolean, selectionMask, type BooleanOperation } from './vector-boolean'
 import { insertAboveSelection, moveLayer } from './scene-tree'
 
 export type EditorTool = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text' | 'image' | 'hand' | 'pencil' | 'pen' | 'brush' | 'eraser' | 'eyedropper' | 'fill'
@@ -129,6 +129,7 @@ interface EditorContextValue extends EditorState {
   distribute: (mode: DistributeMode) => void
   toggleSelection: (property: 'visible' | 'locked') => void
   toggleElement: (id: string, property: 'visible' | 'locked') => void
+  applySelectionMask: () => void
   booleanOperation: (operation: BooleanOperation) => void
   beginTransaction: (label?: string) => void
   endTransaction: () => void
@@ -207,11 +208,16 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
     booleanOperation: (operation) => {
       const ordered = page.elements.filter((element) => state.selectionIds.includes(element.id))
       if (!canBoolean(ordered)) return
-      void booleanElements(ordered[0], ordered[1], operation).then((result) => {
-        if (!result) return
+      void booleanSelection(ordered, operation).then((result) => {
         const ids = new Set(ordered.map((element) => element.id))
-        commit(updateElements(state.document, (elements) => [...elements.filter((element) => !ids.has(element.id)), result]), `Boolean ${operation}`, [result.id])
-      })
+        commit(updateElements(state.document, (elements) => elements.flatMap((element) => ids.has(element.id) ? element.id === ordered.at(-1)!.id && result ? [result] : [] : [element])), `Boolean ${operation}`, result ? [result.id] : [])
+      }).catch((error: unknown) => window.alert(error instanceof Error ? error.message : 'Could not combine these shapes.'))
+    },
+    applySelectionMask: () => {
+      const ordered = page.elements.filter((element) => state.selectionIds.includes(element.id))
+      if (ordered.length !== 2 || ordered.some((element) => element.locked) || ordered[0].type === 'group' || ordered[0].parentId !== ordered[1].parentId) return
+      const [content, shape] = ordered
+      void selectionMask(content, shape).then((mask) => commit(updateElements(state.document, (elements) => elements.filter((element) => element.id !== shape.id).map((element) => element.id === content.id ? { ...element, mask } : element)), 'Use shape as mask', [content.id])).catch((error: unknown) => window.alert(error instanceof Error ? error.message : 'Could not create mask.'))
     },
     beginTransaction: (label = 'Transform selection') => dispatch({ type: 'BEGIN_TRANSACTION', label }),
     endTransaction: () => dispatch({ type: 'END_TRANSACTION' }),

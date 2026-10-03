@@ -1,3 +1,4 @@
+import { CustomSelect } from '../ui/CustomSelect'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, Italic, List, ListOrdered, Underline } from 'lucide-react'
 import type { EdonElement } from '../model/document'
@@ -76,7 +77,7 @@ export function TextToolbar({ targetRef, element, onChange }: Props) {
   }
   const iconButton = (label: string, command: string, icon: React.ReactNode, patch?: Partial<EdonElement>, active?: boolean) => <button type="button" title={label} aria-label={label} aria-pressed={active} onMouseDown={(event) => event.preventDefault()} onClick={() => format(command, patch)}>{icon}</button>
   return <div className="text-format-toolbar" aria-label="Text formatting" onPointerDownCapture={rememberSelection} onFocusCapture={rememberSelection}>
-    <select aria-label="Font family" value={font} onChange={(event) => { const value = event.target.value; setFont(value); if (target()) inlineStyle('fontFamily', value); else if (element) editor.updateElement(element.id, { fontFamily: value }) }}>{FONT_FAMILIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+    <CustomSelect aria-label="Font family" value={font} onChange={(event) => { const value = event.target.value; setFont(value); if (target()) inlineStyle('fontFamily', value); else if (element) editor.updateElement(element.id, { fontFamily: value }) }}>{FONT_FAMILIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</CustomSelect>
     <input aria-label="Font size in pixels" title="Font size (px)" type="number" min={1} max={512} value={size} onChange={(event) => setSize(Number(event.target.value))} onBlur={() => { const value = Math.max(1, Math.min(512, size || 16)); setSize(value); if (target()) inlineStyle('fontSize', `${value}px`); else if (element) editor.updateElement(element.id, { fontSize: value }) }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur() } }} /><span className="text-unit">px</span>
     <i className="format-divider" />
     {iconButton('Bold', 'bold', <Bold size={16} />, { fontWeight: (element?.fontWeight ?? 400) >= 600 ? 400 : 700 }, marks.active ? marks.bold : (element?.fontWeight ?? 400) >= 600)}

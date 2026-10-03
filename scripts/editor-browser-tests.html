@@ -5,6 +5,9 @@
 import { createDocument, createElement } from '/src/model/document.ts'
 import { createRasterStroke, paintRasterRegion, rasterizeElement } from '/src/editor/raster-engine.ts'
 import { serializeArtwork } from '/src/editor/artwork-export.ts'
+import { booleanSelection, selectionMask } from '/src/editor/vector-boolean.ts'
+import { wireTrack, encodeWav } from '/src/music/audio-engine.ts'
+import { saveAudioAsset, loadAudioAsset } from '/src/music/audio-assets.ts'
 import { cleanDocHtml } from '/src/editor/doc-format.ts'
 const settings = { color:'#000000', size:1, opacity:1, hardness:100, smoothing:0, stabilization:0, simplify:0, brushPreset:'hard', antiAlias:false, fillTolerance:24, contiguous:true }
 const results = document.querySelector('#results')
@@ -49,6 +52,44 @@ try {
   let opaque=0;for(let offset=3;offset<exportedPixels.length;offset+=4)if(exportedPixels[offset]===255)opaque++
   assert(opaque===25,`PNG contour: one source pixel + a uniform 2 px outline = 25 opaque pixels (actual ${opaque})`)
   document.querySelector('#samples').append(exported)
+
+  const firstStroke=await createRasterStroke(page,null,[{x:5,y:5},{x:25,y:5}],{...settings,size:3})
+  const secondStroke=await createRasterStroke(page,null,[{x:5,y:15},{x:25,y:15}],{...settings,size:3,color:'#ff0000'})
+  assert(firstStroke.id!==secondStroke.id,'Separate brush gestures produce independent raster layers')
+  const left=createElement('rectangle',0,0,20,20);left.cornerRadius=0
+  const right=createElement('rectangle',10,0,20,20);right.cornerRadius=0
+  for(const [operation,area] of [['union',600],['subtract',200],['intersect',200],['exclude',400]]) {
+    const combined=await booleanSelection([left,right],operation)
+    const raster=await rasterizeElement({...page,width:64,height:64},combined,settings)
+    const pixels=await pixelsOf(raster);let count=0;for(let i=3;i<pixels.data.length;i+=4)if(pixels.data[i]===255)count++
+    assert(count===area,`${operation}: exact rendered area ${area} (actual ${count})`)
+  }
+  assert(await booleanSelection([left,{...right,x:30}],'intersect')===null,'Disjoint intersection produces empty geometry')
+  assert(await booleanSelection([left,{...left,id:'cover'}],'subtract')===null,'Full subtraction produces empty geometry')
+  const third={...right,id:'third',x:20};const three=await booleanSelection([left,right,third],'union')
+  assert(three.width===40,'Boolean union handles three selected shapes')
+  const masked={...left,width:40,height:40,mask:await selectionMask({...left,width:40,height:40},createElement('ellipse',10,10,20,20))}
+  page.elements=[masked]
+  const maskSvg=serializeArtwork(page,[masked],{x:0,y:0,width:40,height:40},true)
+  const maskUrl=URL.createObjectURL(new Blob([maskSvg],{type:'image/svg+xml'}));const maskImage=await imageFrom(maskUrl);const maskCanvas=document.createElement('canvas');maskCanvas.width=40;maskCanvas.height=40;maskCanvas.getContext('2d').drawImage(maskImage,0,0);URL.revokeObjectURL(maskUrl)
+  const maskPixels=maskCanvas.getContext('2d').getImageData(0,0,40,40).data
+  assert(maskPixels[(20*40+20)*4+3]===255&&maskPixels[3]===0,'Selected shape mask clips the exported content')
+  masked.mask.inverted=true;page.elements=[masked]
+  const invertedUrl=URL.createObjectURL(new Blob([serializeArtwork(page,[masked],{x:0,y:0,width:40,height:40},true)],{type:'image/svg+xml'}));const invertedImage=await imageFrom(invertedUrl);maskCanvas.getContext('2d').clearRect(0,0,40,40);maskCanvas.getContext('2d').drawImage(invertedImage,0,0);URL.revokeObjectURL(invertedUrl)
+  const inverted=maskCanvas.getContext('2d').getImageData(0,0,40,40).data
+  assert(inverted[(20*40+20)*4+3]===0&&inverted[3]===255,'Inverted mask cuts a real hole in the exported content')
+  const offline=new OfflineAudioContext(2,44100,44100);const tone=offline.createBuffer(1,44100,44100);tone.getChannelData(0).forEach((_,i,array)=>array[i]=.2*Math.sin(2*Math.PI*440*i/44100))
+  const tone2=offline.createBuffer(1,44100,44100);tone2.getChannelData(0).forEach((_,i,array)=>array[i]=.2*Math.sin(2*Math.PI*880*i/44100))
+  const mix={bpm:120,sync:true,crossfade:0};const t={bpm:120,volume:1,low:0,mid:0,high:0}
+  wireTrack(offline,tone,t,mix,0).source.start(0);wireTrack(offline,tone2,{...t,bpm:60},mix,1).source.start(0)
+  const mixed=await offline.startRendering();const samples=mixed.getChannelData(0)
+  const amplitude=(hz,start=4410,end=17640)=>{let re=0,im=0;for(let i=start;i<end;i++){re+=samples[i]*Math.cos(2*Math.PI*hz*i/44100);im+=samples[i]*Math.sin(2*Math.PI*hz*i/44100)}return 2*Math.hypot(re,im)/(end-start)}
+  assert(amplitude(440)>.13&&amplitude(1760)>.13,'Both decks render simultaneously and BPM sync changes the second playback rate')
+  const eqContext=new OfflineAudioContext(1,44100,44100);wireTrack(eqContext,tone,{...t,low:-24},mix,0).source.start(0);const eqAudio=await eqContext.startRendering();let plainPower=0,eqPower=0;for(let i=4410;i<17640;i++){plainPower+=samples[i]*samples[i];eqPower+=eqAudio.getChannelData(0)[i]**2}
+  assert(eqPower<plainPower*.6,'The real EQ audio graph changes rendered output')
+  const blob=encodeWav(mixed);const asset='browser-test-audio';await saveAudioAsset(asset,blob);const loaded=await loadAudioAsset(asset)
+  assert(loaded&&loaded.size===blob.size,'Imported audio persists in IndexedDB')
+  const header=new DataView(await blob.arrayBuffer());assert(header.getUint32(24,true)===44100&&header.getUint16(22,true)===2,'WAV export has valid stereo PCM headers')
   document.body.dataset.status='passed'
 } catch(error) { document.body.dataset.status='failed';const item=document.createElement('li');item.textContent=String(error);results.append(item) }
 </script></html>

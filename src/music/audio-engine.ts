@@ -1,0 +1,17 @@
+import type { AudioTrack, MusicSession } from '../model/document'
+
+export function playbackRate(track: AudioTrack, session: MusicSession) { return session.sync ? Math.max(.25, Math.min(4, session.bpm / track.bpm)) : 1 }
+export function trackGain(index: number, track: AudioTrack, session: MusicSession) { return track.volume * (index === 0 ? Math.cos((session.crossfade + 1) * Math.PI / 4) : Math.sin((session.crossfade + 1) * Math.PI / 4)) }
+export function trackStart(track: AudioTrack, session: MusicSession) { const beat = 60 / track.bpm; return session.sync ? Math.max(track.start, track.beatOffset + Math.ceil((track.start - track.beatOffset) / beat) * beat) : track.start }
+export function trackDuration(track: AudioTrack, session: MusicSession) { return Math.max(0, track.end - trackStart(track, session)) / playbackRate(track, session) }
+export function wireTrack(context: BaseAudioContext, buffer: AudioBuffer, track: AudioTrack, session: MusicSession, index: number) {
+  const source = context.createBufferSource(); source.buffer = buffer; source.playbackRate.value = playbackRate(track, session)
+  const low = context.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 250; low.gain.value = track.low
+  const mid = context.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = 1000; mid.Q.value = .8; mid.gain.value = track.mid
+  const high = context.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = 4000; high.gain.value = track.high
+  const gain = context.createGain(); gain.gain.value = trackGain(index, track, session)
+  source.connect(low).connect(mid).connect(high).connect(gain).connect(context.destination)
+  return { source, low, mid, high, gain }
+}
+export function waveform(buffer: AudioBuffer, count = 240): number[] { const channel = buffer.getChannelData(0); return Array.from({ length: count }, (_, index) => { const start = Math.floor(index / count * channel.length); const end = Math.max(start + 1, Math.floor((index + 1) / count * channel.length)); let peak = 0; const stride = Math.max(1, Math.floor((end - start) / 100)); for (let at = start; at < end; at += stride) peak = Math.max(peak, Math.abs(channel[at] ?? 0)); return peak }) }
+export function encodeWav(buffer: AudioBuffer): Blob { const channels = Math.min(2, buffer.numberOfChannels); const length = buffer.length; const data = new ArrayBuffer(44 + length * channels * 2); const view = new DataView(data); const text = (offset: number, value: string) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0))); text(0, 'RIFF'); view.setUint32(4, data.byteLength - 8, true); text(8, 'WAVE'); text(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, channels, true); view.setUint32(24, buffer.sampleRate, true); view.setUint32(28, buffer.sampleRate * channels * 2, true); view.setUint16(32, channels * 2, true); view.setUint16(34, 16, true); text(36, 'data'); view.setUint32(40, length * channels * 2, true); const samples = Array.from({ length: channels }, (_, index) => buffer.getChannelData(index)); for (let index = 0; index < length; index++) for (let channel = 0; channel < channels; channel++) { const value = Math.max(-1, Math.min(1, samples[channel][index])); view.setInt16(44 + (index * channels + channel) * 2, value * (value < 0 ? 32768 : 32767), true) } return new Blob([data], { type: 'audio/wav' }) }
