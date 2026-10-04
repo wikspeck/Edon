@@ -56,3 +56,5 @@ Auto DJ preloads the next queued song into the idle deck, starts it at the trans
 Open `/scripts/dj-audio-check.html` on the local dev server and click Run DJ audio tests to exercise actual Web Audio independent transports, seeking, crossfader gains, filter response, loops, alternating transitions and rendered echo/reverb tails.
 
 DJ keyboard, linked sliders, beat grid and transition modes: [Bedienungs-Steckbrief](docs/dj-bedienung.md).
+
+The Fade Planner follows manual crossfader position, supports draggable points and shared library presets. Held arrow keys control crossfade speed; Quantize, active-master beat sync, and momentary tempo nudge support manual mixing. The DJ browser harnesses also verify planner DSP, phase sync, nudge, key release and focus guards.

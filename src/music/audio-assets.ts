@@ -1,7 +1,7 @@
-import type { AudioTrack } from '../model/document'
+import type { AudioTrack, FadePreset } from '../model/document'
 export interface Song extends AudioTrack { notes: string; peaks: number[]; key: string; pitch: number; minor: boolean; energy: number; confidence: number }
 export interface Playlist { id: string; name: string; songs: string[]; notes: string }
-export interface Library { songs: Song[]; playlists: Playlist[] }
+export interface Library { songs: Song[]; playlists: Playlist[]; fadePresets?: FadePreset[] }
 export const emptyLibrary = (): Library => ({ songs: [], playlists: [] })
 const database = () => new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('edon.audio.v1', 2); request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains('assets')) request.result.createObjectStore('assets'); if (!request.result.objectStoreNames.contains('library')) request.result.createObjectStore('library') }; request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error) })
 async function transaction<T>(store: string, mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> { const db = await database(); try { return await new Promise<T>((resolve, reject) => { const tx = db.transaction(store, mode); const request = action(tx.objectStore(store)); tx.oncomplete = () => resolve(request.result); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error) }) } finally { db.close() } }

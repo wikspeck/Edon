@@ -29,3 +29,17 @@ export function transitionWindow(track: AudioTrack, seconds: number, rate = 1) {
 export function linkedValue(value: number, min: number, max: number, delta: number, inverse = false) {
   return Math.max(min, Math.min(max, value + delta * (max - min) * (inverse ? -1 : 1)))
 }
+
+export function quantizeTime(track: AudioTrack, seconds: number, mode: 'nearest' | 'next' = 'nearest') {
+  const beat = 60 / track.bpm; const round = mode === 'next' ? Math.ceil : Math.round
+  const first = Math.ceil((track.start - track.beatOffset) / beat - .000001)
+  const last = Math.floor((track.end - track.beatOffset) / beat + .000001)
+  if (first > last) return Math.max(track.start, Math.min(track.end, seconds))
+  const index = Math.max(first, Math.min(last, round((seconds - track.beatOffset) / beat)))
+  return track.beatOffset + index * beat
+}
+export function crossfadeDelta(keys: ReadonlySet<string>, seconds: number) {
+  const direction = Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'))
+  const speed = keys.has('ArrowUp') ? 1.2 : keys.has('ArrowDown') ? .12 : .4
+  return direction * speed * Math.max(0, Math.min(.05, seconds))
+}

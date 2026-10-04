@@ -8,21 +8,23 @@ Klicke ein Deck an, um A oder B für die Tastatur auszuwählen. Der DJ-Helfer ze
 | Leertaste | Fokussiertes Deck starten oder pausieren |
 | C / Shift+C | Zum Cue zurück und pausieren / aktuelle Position als Cue speichern |
 | 2–5 / Shift+2–5 | Hot-Cue 1–4 anspringen / speichern; ein leerer Cue wird beim ersten Druck gespeichert |
-| S | BPM-Sync an/aus |
+| S | BPM- und Beat-Sync zum hörbaren Master-Deck an/aus |
+| Q | Quantize an/aus |
+| Z / V halten | Fokussiertes Deck vorübergehend 4 % langsamer / schneller |
 | L | 4-Beat-Loop an/aus, Einstieg an aktueller Position |
 | Minus / Plus (auch =) | Loop halbieren / verdoppeln (1–32 Beats) |
-| Links / Rechts | Einen Beat zurück / vor |
-| Shift+Links / Rechts | Einen Takt zurück / vor |
+| Links / Rechts halten | Crossfader kontinuierlich nach A / B |
+| Zusätzlich Hoch / Runter halten | Crossfader schneller / langsamer bewegen |
+| Komma / Punkt | Einen Beat zurück / vor |
+| Shift+Komma / Punkt | Einen Takt zurück / vor |
 | P | Nächste geschätzte 8-Takt-Phrase |
-| Hoch / Runter | Level erhöhen / senken |
-| Shift+Hoch / Runter | Filter erhöhen / senken |
 | J / K (auch [ / ]) | Crossfader nach A / B |
 | D | Auto-DJ an/aus |
 | X | Übergang zum nächsten Queue-Song starten |
 | H / ? | Hilfe öffnen/schließen |
 | Escape | Regler-Auswahl aufheben |
 
-Bei Text- und Zahlenfeldern sind die DJ-Hotkeys ausgesetzt. Ein fokussierter Slider behält seine normalen Pfeiltasten.
+Bei Text- und Zahlenfeldern sind die DJ-Hotkeys ausgesetzt. Links/Rechts sind auch bei fokussierten Reglern für den Crossfader reserviert, damit die andere Hand mit der Maus regeln kann. Ausgenommen sind Text-/Zahlenfelder, Auswahlmenüs und der Panel-Trenner. Loslassen, Fokusverlust oder Wechsel in ein Textfeld stoppt die Tastaturbewegung. Die Bewegung läuft unabhängig von der Tastatur-Wiederholrate: normal 5 s, schnell ca. 1,7 s, langsam ca. 16,7 s von A bis B.
 
 ## Zwei Hände mit einer Maus
 
@@ -59,3 +61,25 @@ Manuelles Play/Pause, Seek und Regleränderungen beenden Auto-DJ und stellen aut
 **Level:** Lautstärke des Decks. **Low/Mid/High:** Bass, Mitten, Höhen. **Filter:** positiv Hochpass (Bass weg), negativ Tiefpass (Höhen weg). **Resonance:** Betonung an der Filtergrenze. **Echo:** verzögerte Wiederholungen, Timing ¼, ½, 1 oder 2 Beats unter More (maximal 1,8 Sekunden). **Reverb:** Raumhall. **Pan:** Links-/Rechtsverteilung.
 
 Die BPM-/Tonartanalyse und Übergangsvorschläge sind Näherungen. Es gibt keine Gesangs-/Drop-Erkennung. Sync verändert derzeit Geschwindigkeit **und Tonhöhe**; ein Verfahren zur Tempoänderung ohne Tonhöhenänderung ist noch nicht vorhanden. RMS-Abgleich ist keine LUFS-Normalisierung oder Clipping-Garantie. Die Originaldateien bleiben unverändert. Die Library ist browserlokal; nutze Backups.
+
+## Fade Planner: du steuerst den Übergang
+
+Der Planner sitzt im Deck-Hauptfenster unter den Filtern. Wähle **A → B** oder **B → A**, lade ein Preset und aktiviere **Arm plan**. Die Anzeige und das Audiosignal folgen der aktuellen Crossfader-Position, nicht einer Uhr. Zurückziehen kehrt die Reglerbewegung um; anhalten hält die Werte.
+
+Unter **Edit routes** kannst du für A oder B Bass, Mitten, Höhen, Filter, Level, Echo, Reverb oder Pan hinzufügen. Jeder Punkt hat eine Crossfade-Position in Prozent und einen Parameterwert. Ziehe Punkte in der Kurve oder ändere die Zahlen. Weitere Punkte erzeugen Plateaus oder spätere Einsätze. Kurven: linear, smooth, easeIn, easeOut. Die Werte bleiben in den Grenzen des jeweiligen Reglers.
+
+Ein manueller Eingriff löst nur die betroffene Route; sie wird mit **manual** markiert. Du kannst sie wieder verbinden. Beim Entschärfen des Plans bleiben die aktuellen Werte als manuelle Reglerwerte stehen. Auto-DJ und Fade now lösen den manuellen Plan ebenfalls, damit keine zwei Automationen gegeneinander arbeiten.
+
+Die Preset-Knöpfe **clean**, **bass**, **filter** und **echo** stehen neben der Kurve. Eigene Presets lassen sich mit Namen speichern; sie bleiben in der gemeinsamen browserlokalen Library erhalten, auch über Projekte hinweg, und werden mit dem Library-Backup gesichert. Das Laden zeigt erst eine Vorschau; erst **Arm plan** aktiviert die Bewegung.
+
+## Aktiver Master, Beat Sync, Quantize und Nudge
+
+**Sync** übernimmt die ursprünglichen BPM des hörbaren Decks. Das andere Deck passt seine Abspielgeschwindigkeit daran an. **Beat sync** richtet zusätzlich die laufenden Beats am Master aus; beim Start des zweiten Decks wartet Edon auf den nächsten Master-Beat. Während einer Überblendung bleibt das bisherige Master-Tempo bestehen; am Endpunkt übernimmt das neue Deck seine eigenen BPM. Auto-DJ wechselt den Master nach abgeschlossenem Übergang. Der manuelle BPM-Eingang ist während Sync gesperrt.
+
+**Quantize** setzt Seek, Cue-/Hot-Cue-Marken und Loop-Einstiege auf das geschätzte Beat-Grid. Es erkennt keine Taktart und korrigiert keine falsche BPM-Analyse. Das Grid lässt sich weiterhin mit Set downbeat und BPM korrigieren.
+
+**Tempo Nudge** beschleunigt oder bremst nur das fokussierte Deck um 4 %. Halte Z/V oder die −/+ Knöpfe neben der tatsächlichen Deck-Tempoanzeige. Nach Loslassen gilt wieder das ursprüngliche oder synchronisierte Tempo; BPM-Metadaten ändern sich nicht. Sync und Nudge verändern weiterhin auch die Tonhöhe.
+
+## Große Drop-Flächen
+
+Ein Song aus der Library lässt sich auf die gesamte Fläche eines Decks ziehen, auch auf dessen Regler. Auf den übrigen Editorflächen, einschließlich Queue-Überschrift und DJ-Helfer, wird er zur Queue hinzugefügt. Audiodateien werden auf einem Deck importiert und der erste Song dort geladen; auf sonstigen Flächen importiert und eingereiht. Die Library-Fläche importiert Dateien ohne sie einzureihen. Playlist-Drops und Queue-Umsortierung behalten ihre eigene Bedeutung.
