@@ -3,7 +3,7 @@ import { filterFrequency, playbackRate, trackGain, trackStart, wireTrack } from 
 export type Slot = 0 | 1
 export type Voice = ReturnType<typeof wireTrack>
 interface Channel { track?: AudioTrack; buffer?: AudioBuffer; voice?: Voice; position: number; started: number; offset: number; rate: number; playing: boolean }
-export interface Transition { from: Slot; to: Slot; started: number; duration: number; initial: number; target: number; bass: boolean }
+export interface Transition { from: Slot; to: Slot; started: number; duration: number; initial: number; target: number; bass: boolean; style: string }
 export class DJTransport {
   channels: [Channel, Channel] = [this.empty(), this.empty()]
   crossfade = -1
@@ -31,14 +31,14 @@ export class DJTransport {
     ch.position = position; ch.offset = position; ch.started = at; ch.rate = rate; voice.source.playbackRate.setTargetAtTime(rate, at, .025)
     voice.low.gain.setTargetAtTime(track.low, at, .025); voice.mid.gain.setTargetAtTime(track.mid, at, .025); voice.high.gain.setTargetAtTime(track.high, at, .025)
     voice.filter.type = (track.filter ?? 0) >= 0 ? 'highpass' : 'lowpass'; voice.filter.frequency.setTargetAtTime(filterFrequency(track.filter ?? 0), at, .025); voice.filter.Q.setTargetAtTime(track.resonance ?? .7, at, .025)
-    voice.echo.gain.setTargetAtTime(track.echo ?? 0, at, .025); voice.reverb.gain.setTargetAtTime(track.reverb ?? 0, at, .025); voice.pan.pan.setTargetAtTime(track.pan ?? 0, at, .025); voice.delay.delayTime.setTargetAtTime(Math.min(1.8, 30 / session.bpm), at, .025)
+    voice.echo.gain.setTargetAtTime(track.echo ?? 0, at, .025); voice.reverb.gain.setTargetAtTime(track.reverb ?? 0, at, .025); voice.pan.pan.setTargetAtTime(track.pan ?? 0, at, .025); voice.delay.delayTime.setTargetAtTime(Math.min(1.8, 60 / session.bpm * (track.echoBeats ?? .5)), at, .025)
     voice.source.loop = Boolean(track.loopBeats); voice.source.loopStart = Math.max(track.start, track.cue ?? track.beatOffset); voice.source.loopEnd = Math.min(track.end, voice.source.loopStart + (track.loopBeats ?? 0) * 60 / track.bpm)
     this.mix(this.crossfade, session)
   }
   mix(value: number, session: MusicSession) { this.crossfade = Math.max(-1, Math.min(1, value)); this.channels.forEach((ch, index) => { if (ch.track && ch.voice) ch.voice.gain.gain.setTargetAtTime(trackGain(index, ch.track, { ...session, crossfade: this.crossfade }), this.context.currentTime, .012) }) }
-  beginTransition(from: Slot, to: Slot, duration: number, bass = false, when = this.context.currentTime) { this.transition = { from, to, started: when, duration: Math.max(.2, duration), initial: this.crossfade, target: to === 0 ? -1 : 1, bass } }
-  cancelTransition() { this.transition = undefined }
-  tick(session: MusicSession) { const fade = this.transition; if (!fade) return false; const progress = Math.min(1, Math.max(0, (this.context.currentTime - fade.started) / fade.duration)); this.mix(fade.initial + (fade.target - fade.initial) * progress, session); const outgoing = this.channels[fade.from]; if (fade.bass && outgoing.voice && outgoing.track) outgoing.voice.low.gain.setTargetAtTime(outgoing.track.low * (1 - progress) - 12 * progress, this.context.currentTime, .025); if (progress >= 1) { this.pause(fade.from); this.transition = undefined; return true } return false }
+  beginTransition(from: Slot, to: Slot, duration: number, bass = false, when = this.context.currentTime, style = 'blend') { this.transition = { from, to, started: when, duration: Math.max(.2, duration), initial: this.crossfade, target: to === 0 ? -1 : 1, bass, style } }
+  cancelTransition() { for (const ch of this.channels) if (ch.track && ch.voice) { ch.voice.low.gain.setTargetAtTime(ch.track.low, this.context.currentTime, .025); ch.voice.filter.type = (ch.track.filter ?? 0) >= 0 ? 'highpass' : 'lowpass'; ch.voice.filter.frequency.setTargetAtTime(filterFrequency(ch.track.filter ?? 0), this.context.currentTime, .025); ch.voice.echo.gain.setTargetAtTime(ch.track.echo ?? 0, this.context.currentTime, .025) } this.transition = undefined }
+  tick(session: MusicSession) { const fade = this.transition; if (!fade) return false; const progress = Math.min(1, Math.max(0, (this.context.currentTime - fade.started) / fade.duration)); this.mix(fade.initial + (fade.target - fade.initial) * progress, session); const outgoing = this.channels[fade.from]; if (fade.bass && outgoing.voice && outgoing.track) outgoing.voice.low.gain.setTargetAtTime(outgoing.track.low * (1 - progress) - 12 * progress, this.context.currentTime, .025); if (outgoing.voice && outgoing.track && fade.style === 'filter') { outgoing.voice.filter.type = 'highpass'; outgoing.voice.filter.frequency.setTargetAtTime(filterFrequency(Math.min(1, Math.max(0, outgoing.track.filter ?? 0) + .6 * progress)), this.context.currentTime, .025) } if (outgoing.voice && fade.style === 'echo') outgoing.voice.echo.gain.setTargetAtTime(.35 * progress, this.context.currentTime, .025); const incoming = this.channels[fade.to]; if (fade.bass && incoming.voice && incoming.track) incoming.voice.low.gain.setTargetAtTime(incoming.track.low * progress - 12 * (1 - progress), this.context.currentTime, .025); if (progress >= 1) { this.pause(fade.from); this.transition = undefined; return true } return false }
   stop() { this.cancelTransition(); for (const slot of [0, 1] as const) { this.pause(slot); this.channels[slot].position = this.channels[slot].track?.start ?? 0 } }
   close() { this.stop(); void this.context.close() }
 }

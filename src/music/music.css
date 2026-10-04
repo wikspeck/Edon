@@ -132,3 +132,13 @@
 .floating-window:has(.dj-pane-body) .floating-window-titlebar strong { white-space:nowrap; font-size:10px; }
 .floating-window:has(.dj-pane-body) .floating-window-titlebar span { font-size:8px; }
 .floating-window:has(.dj-pane-body) .floating-window-titlebar button { background:#343d48; color:#d5e0ec; border:0; }
+
+.dj-control.linked { background:#36536a; outline:1px solid #8ebdde; border-radius:3px; }
+.dj-beat-readout { display:flex; align-items:center; justify-content:space-between; font-size:8px; color:#a6bfd6; margin:3px 0; }
+.dj-beat-readout button { font-size:8px; padding:2px 3px; }
+.dj-hotcues { display:flex; gap:3px; margin:3px 0; }.dj-hotcues button { font-size:8px; flex:1; padding:3px; }
+.dj-wave .dj-cue-marker { inset:auto; top:0; display:block; color:#fff; font-size:8px; background:#34546c; padding:1px; pointer-events:none; }
+.dj-shortcuts { position:absolute; z-index:50; right:12px; top:48px; width:min(540px,calc(100vw - 24px)); max-height:80vh; overflow:auto; padding:14px; border-radius:7px; background:#26323f; box-shadow:0 10px 50px #0009; font-size:11px; line-height:1.6; }.dj-shortcuts>button { float:right; }.dj-shortcuts small { color:#a4b5c5; }
+.dj-deck-secondary { flex-wrap:wrap; gap:4px; }.dj-deck-secondary>button { padding:3px 4px; }
+
+.dj-wave { height:45px; }.dj-deck>header { height:26px; margin-bottom:3px; }.dj-deck-transport { margin:3px 0; }.dj-signal canvas { height:30px; }.dj-beat-readout,.dj-hotcues { margin:2px 0; }.dj-deck-controls { gap:3px 8px; }.dj-helper-compact p { margin:3px 0; line-height:1.35; }.dj-helper-compact { padding:5px 8px; }

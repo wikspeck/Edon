@@ -54,3 +54,5 @@ The mixer crossfader controls equal-power gains and displays both gain curves an
 Auto DJ preloads the next queued song into the idle deck, starts it at the transition, moves the crossfader and stops the outgoing deck, alternating A → B → A. With Sync enabled it aligns starts to the outgoing estimated beat grid. It shortens transitions for large tempo/key differences and reduces outgoing bass for two high-energy songs. Fade now triggers the transition immediately. Starting Auto DJ is an explicit action after reopening a project; browser autoplay policy still requires a user gesture. Loops hold the outgoing deck until disabled. Sync currently changes pitch as well as tempo. Export decks renders the loaded decks at current settings, not a recording of the live queue performance.
 
 Open `/scripts/dj-audio-check.html` on the local dev server and click Run DJ audio tests to exercise actual Web Audio independent transports, seeking, crossfader gains, filter response, loops, alternating transitions and rendered echo/reverb tails.
+
+DJ keyboard, linked sliders, beat grid and transition modes: [Bedienungs-Steckbrief](docs/dj-bedienung.md).
