@@ -57,4 +57,16 @@ Open `/scripts/dj-audio-check.html` on the local dev server and click Run DJ aud
 
 DJ keyboard, linked sliders, beat grid and transition modes: [Bedienungs-Steckbrief](docs/dj-bedienung.md).
 
-The Fade Planner follows manual crossfader position, supports draggable points and shared library presets. Held arrow keys control crossfade speed; Quantize, active-master beat sync, and momentary tempo nudge support manual mixing. The DJ browser harnesses also verify planner DSP, phase sync, nudge, key release and focus guards.
+## Creative Suite direction (October 2026)
+
+The public route `/` is an independent editorial marketing site; `/app` opens the local workspace. Existing Cloudflare SPA deployment remains unchanged. The website includes three genuine captures made by drawing a logo inside Edon, with an autoplay/pause and draggable step control. These are still captures, not a continuous video recording. Reveal/orbit animations honor reduced motion.
+
+The editor uses quiet charcoal/olive neutrals, a custom Edon mark, unobtrusive separators and consistent focus/hover feedback. Canvas, Document, Presentation, Video and Audio are fixed file types. Presentation uses the existing multi-page canvas/export workflow, without slide transitions. Video is an early local workspace: import browser-supported clips, persist source files in IndexedDB, preview and trim in/out points, mute and save an edit-list JSON. Clips preview individually; rendered video export and multitrack composition are not implemented.
+
+Audio retains import/library/playlists, two independent tracks, EQ/filter and simple crossfading/Auto DJ. Beat/cue/timing tools are collapsed. The visual Fade Planner was removed and old saved plans no longer affect playback; legacy preset data stays intact in library backups.
+
+### Desktop
+
+Tauri 2 wraps the same bundled workspace. `npm run desktop:dev` starts development; `npm run desktop:build` produces a Windows NSIS installer. `npm run desktop:check` checks Rust. Windows requires the Visual Studio C++ desktop build tools, Windows SDK and WebView2. This checkout has Rust, but its C++ linker was unavailable during validation, so no installer was produced. Desktop/web local stores are separate; automatic synchronization is not implemented. See [Tauri configuration](https://v2.tauri.app/reference/config/).
+
+QA: `npm run check`; `/scripts/video-fixture.html` creates a synthetic clip for import/trim/reload checks. Production publishing is a separate action.

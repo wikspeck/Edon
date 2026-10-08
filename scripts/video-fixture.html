@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Edon video QA fixture</title><body><button id="make">Create 2 second QA clip</button><p id="status">Ready</p><canvas id="canvas" width="640" height="360"></canvas><script>
+document.querySelector('#make').onclick = async () => {
+  const canvas = document.querySelector('#canvas'), context = canvas.getContext('2d');
+  const stream = canvas.captureStream(24), chunks = [];
+  const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+  recorder.ondataavailable = event => chunks.push(event.data);
+  recorder.onstop = () => {
+    stream.getTracks().forEach(track => track.stop());
+    const url = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'edon-video-qa.webm'; link.textContent = 'Download QA clip'; document.body.append(link);
+    document.querySelector('#status').textContent = 'Clip ready';
+  };
+  let frame = 0;
+  const timer = setInterval(() => { context.fillStyle = '#22271b'; context.fillRect(0,0,640,360); context.fillStyle = '#dce1cf'; context.fillRect(100 + frame * 2,120,100,100); frame++; }, 40);
+  recorder.start(); document.querySelector('#status').textContent = 'Recording synthetic clip';
+  setTimeout(() => { clearInterval(timer); recorder.stop(); }, 2100);
+};
+</script></body></html>

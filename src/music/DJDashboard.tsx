@@ -6,7 +6,7 @@ const initial: PaneId[] = ['decks', 'mixer', 'library', 'queue']
 export function DJDashboard({ panes }: { panes: Record<PaneId, { title: string; content: ReactNode }> }) {
   const [order, setOrder] = useState<PaneId[]>(() => { try { const saved = JSON.parse(localStorage.getItem('edon.dj.layout') ?? 'null'); return Array.isArray(saved) && saved.length === 4 && new Set(saved).size === 4 && saved.every((id) => initial.includes(id)) ? saved : initial } catch { return initial } })
   const [floating, setFloating] = useState<PaneId[]>([])
-  const [split, setSplit] = useState(75)
+  const [split, setSplit] = useState(58)
   const drag = useRef<{ id: PaneId; x: number; y: number } | null>(null)
   const grid = useRef<HTMLDivElement>(null)
   const swap = (source: PaneId, target: PaneId) => { const next = [...order]; const a = next.indexOf(source); const b = next.indexOf(target); [next[a], next[b]] = [next[b], next[a]]; setOrder(next); localStorage.setItem('edon.dj.layout', JSON.stringify(next)) }

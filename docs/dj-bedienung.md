@@ -62,15 +62,9 @@ Manuelles Play/Pause, Seek und Regleränderungen beenden Auto-DJ und stellen aut
 
 Die BPM-/Tonartanalyse und Übergangsvorschläge sind Näherungen. Es gibt keine Gesangs-/Drop-Erkennung. Sync verändert derzeit Geschwindigkeit **und Tonhöhe**; ein Verfahren zur Tempoänderung ohne Tonhöhenänderung ist noch nicht vorhanden. RMS-Abgleich ist keine LUFS-Normalisierung oder Clipping-Garantie. Die Originaldateien bleiben unverändert. Die Library ist browserlokal; nutze Backups.
 
-## Fade Planner: du steuerst den Übergang
+## Vereinfachter Audio-Arbeitsbereich
 
-Der Planner sitzt im Deck-Hauptfenster unter den Filtern. Wähle **A → B** oder **B → A**, lade ein Preset und aktiviere **Arm plan**. Die Anzeige und das Audiosignal folgen der aktuellen Crossfader-Position, nicht einer Uhr. Zurückziehen kehrt die Reglerbewegung um; anhalten hält die Werte.
-
-Unter **Edit routes** kannst du für A oder B Bass, Mitten, Höhen, Filter, Level, Echo, Reverb oder Pan hinzufügen. Jeder Punkt hat eine Crossfade-Position in Prozent und einen Parameterwert. Ziehe Punkte in der Kurve oder ändere die Zahlen. Weitere Punkte erzeugen Plateaus oder spätere Einsätze. Kurven: linear, smooth, easeIn, easeOut. Die Werte bleiben in den Grenzen des jeweiligen Reglers.
-
-Ein manueller Eingriff löst nur die betroffene Route; sie wird mit **manual** markiert. Du kannst sie wieder verbinden. Beim Entschärfen des Plans bleiben die aktuellen Werte als manuelle Reglerwerte stehen. Auto-DJ und Fade now lösen den manuellen Plan ebenfalls, damit keine zwei Automationen gegeneinander arbeiten.
-
-Die Preset-Knöpfe **clean**, **bass**, **filter** und **echo** stehen neben der Kurve. Eigene Presets lassen sich mit Namen speichern; sie bleiben in der gemeinsamen browserlokalen Library erhalten, auch über Projekte hinweg, und werden mit dem Library-Backup gesichert. Das Laden zeigt erst eine Vorschau; erst **Arm plan** aktiviert die Bewegung.
+Der Fade Planner wurde entfernt. Alte gespeicherte Pläne beeinflussen die Wiedergabe nicht mehr. Beat-Tools, Hot Cues und Timing-Einstellungen stehen bei Bedarf in aufklappbaren Bereichen. Library und Preset-Daten bleiben erhalten.
 
 ## Aktiver Master, Beat Sync, Quantize und Nudge
 

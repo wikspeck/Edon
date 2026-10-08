@@ -53,9 +53,9 @@ export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
           <IconButton label="Close dialog" onClick={onClose}><X size={16} /></IconButton>
         </header>
 
-        <div className="file-kind-picker" aria-label="File type">{(['canvas', 'doc', 'music'] as const).map((value) => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { setKind(value); if (value === 'doc') setPreset('a4') }}>{value === 'doc' ? 'Document' : value === 'music' ? 'Music' : 'Canvas'}</button>)}</div>
-        <div className={`dialog-body ${kind === 'music' ? 'music-create' : ''}`}>
-          <section style={{ display: kind === 'music' ? 'none' : undefined }} className="preset-section" aria-label="Canvas presets">
+        <div className="file-kind-picker" aria-label="File type">{(['canvas', 'doc', 'presentation', 'video', 'music'] as const).map((value) => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { setKind(value); if (value === 'doc') setPreset('a4'); if (value === 'presentation') setPreset('desktop-hd') }}>{value === 'doc' ? 'Document' : value === 'music' ? 'Audio' : value === 'video' ? 'Video' : value === 'presentation' ? 'Presentation' : 'Canvas'}</button>)}</div>
+        <div className={`dialog-body ${(kind === 'music' || kind === 'video') ? 'music-create' : ''}`}>
+          <section style={{ display: (kind === 'music' || kind === 'video') ? 'none' : undefined }} className="preset-section" aria-label="Canvas presets">
             <div className="section-label">Presets</div>
             <div className="preset-grid">
               {DOCUMENT_PRESETS.map((preset) => (
@@ -85,7 +85,7 @@ export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
               <span>Name</span>
               <input value={name} onChange={(event) => setName(event.target.value)} autoFocus />
             </label>
-            <div className="dimension-fields" style={{ display: kind === 'music' ? 'none' : undefined }}>
+            <div className="dimension-fields" style={{ display: (kind === 'music' || kind === 'video') ? 'none' : undefined }}>
               <label className="field-stack">
                 <span>Width</span>
                 <div className="unit-input"><input type="number" value={width} min={16} max={8192} onChange={(event) => setDimension('width', event.target.value)} /><em>px</em></div>
@@ -95,11 +95,11 @@ export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
                 <div className="unit-input"><input type="number" value={height} min={16} max={8192} onChange={(event) => setDimension('height', event.target.value)} /><em>px</em></div>
               </label>
             </div>
-            <div style={{ display: kind === 'music' ? 'none' : undefined }} className="orientation-control" aria-label="Orientation">
+            <div style={{ display: (kind === 'music' || kind === 'video') ? 'none' : undefined }} className="orientation-control" aria-label="Orientation">
               <button type="button" className={width >= height ? 'is-active' : ''} onClick={() => width < height && [setWidth(height), setHeight(width)]}><RectangleHorizontal size={15} /> Landscape</button>
               <button type="button" className={height > width ? 'is-active' : ''} onClick={() => height < width && [setWidth(height), setHeight(width)]}><RectangleVertical size={15} /> Portrait</button>
             </div>
-            <div style={{ display: kind === 'music' ? 'none' : undefined }} className="canvas-summary">
+            <div style={{ display: (kind === 'music' || kind === 'video') ? 'none' : undefined }} className="canvas-summary">
               <div className="summary-sheet" style={{ aspectRatio: `${width} / ${height}` }} />
               <div><strong>{width} × {height}</strong><span>RGB · 72 PPI</span></div>
             </div>

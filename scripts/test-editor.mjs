@@ -25,6 +25,14 @@ assert.deepEqual([...edgeAlpha].filter((_, index) => index % 4 === 3), [0, 0, 0,
 const { createDocument, createElement, migrateDocument, documentKind } = await load('../src/model/document.ts')
 assert.equal(documentKind(createDocument('Doc', 794, 1123, 'doc')), 'doc')
 assert.equal(documentKind(createDocument('Music', 100, 100, 'music')), 'music')
+for (const kind of ['presentation', 'video']) {
+  const source = createDocument('Suite QA', 1920, 1080, kind)
+  if (kind === 'video') source.video = [{ id: 'fixture', name: 'clip.webm', duration: 8, start: 1, end: 6, muted: true }]
+  const restored = migrateDocument(JSON.parse(JSON.stringify(source)))
+  assert.equal(documentKind(restored), kind, 'new suite file types survive persistence')
+  if (kind === 'video') assert.deepEqual(restored.video, source.video, 'video edit points and mute survive persistence')
+}
+
 const { playbackRate, trackStart, trackDuration, trackGain, encodeWav } = await load('../src/music/audio-engine.ts')
 const session = { bpm: 120, sync: true, crossfade: 0, tracks: [] }
 const audio = { bpm: 90, beatOffset: .1, start: .3, end: 8, volume: 1 }
