@@ -59,7 +59,7 @@ DJ keyboard, linked sliders, beat grid and transition modes: [Bedienungs-Steckbr
 
 ## Creative Suite direction (October 2026)
 
-The public route `/` is an independent editorial marketing site; `/app` opens the local workspace. Existing Cloudflare SPA deployment remains unchanged. The website includes three genuine captures made by drawing a logo inside Edon, with an autoplay/pause and draggable step control. These are still captures, not a continuous video recording. Reveal/orbit animations honor reduced motion.
+The public route `/` is an independent editorial marketing site; `/app` opens the local workspace. Existing Cloudflare SPA deployment remains unchanged. The website introduces all five workspaces through interactive tabs, genuine editor screenshots, an offline Windows download and an optional product video slot. Add your recording at public/media/edon-demo.mp4. Reveal/orbit animations honor reduced motion.
 
 The editor uses quiet charcoal/olive neutrals, a custom Edon mark, unobtrusive separators and consistent focus/hover feedback. Canvas, Document, Presentation, Video and Audio are fixed file types. Presentation uses the existing multi-page canvas/export workflow, without slide transitions. Video is an early local workspace: import browser-supported clips, persist source files in IndexedDB, preview and trim in/out points, mute and save an edit-list JSON. Clips preview individually; rendered video export and multitrack composition are not implemented.
 
@@ -67,6 +67,6 @@ Audio retains import/library/playlists, two independent tracks, EQ/filter and si
 
 ### Desktop
 
-Tauri 2 wraps the same bundled workspace. `npm run desktop:dev` starts development; `npm run desktop:build` produces a Windows NSIS installer. `npm run desktop:check` checks Rust. Windows requires the Visual Studio C++ desktop build tools, Windows SDK and WebView2. This checkout has Rust, but its C++ linker was unavailable during validation, so no installer was produced. Desktop/web local stores are separate; automatic synchronization is not implemented. See [Tauri configuration](https://v2.tauri.app/reference/config/).
+The Windows edition is a native .NET 10 / WPF editor with a self-contained portable EXE. Tauri has been removed. Native canvas, rich text, pages, local project files and exports work independently of the more complete web editor. Advanced web tools have not all been ported; project formats and storage are separate. Develop in VS Code with npm run desktop:dev; build with npm run desktop:build. See [Native desktop build, features and publishing](docs/desktop.md).
 
 QA: `npm run check`; `/scripts/video-fixture.html` creates a synthetic clip for import/trim/reload checks. Production publishing is a separate action.

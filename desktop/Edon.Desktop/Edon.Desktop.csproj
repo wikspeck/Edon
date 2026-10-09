@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup>
+<OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+<AssemblyName>Edon</AssemblyName><Version>0.2.0</Version><ApplicationIcon>Assets/edon.ico</ApplicationIcon>
+<PublishSingleFile>true</PublishSingleFile><SelfContained>true</SelfContained><RuntimeIdentifier>win-x64</RuntimeIdentifier><IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract><EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+</PropertyGroup></Project>

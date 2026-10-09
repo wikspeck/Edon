@@ -1,3 +1,3 @@
 export function BrandMark({ size = 24 }: { size?: number }) {
-  return <svg className="brand-mark" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6H9a5 5 0 0 0 0 10h10M5 11h11" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square" /><circle cx="19" cy="11" r="1.5" fill="currentColor" /></svg>
+  return <svg className="brand-mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M23 4H16a12 12 0 0 0 0 24h7v-6h-7a6 6 0 0 1 0-12h7ZM17 13h6v6h-6a3 3 0 0 1 0-6Z" fill="currentColor" /><circle cx="28" cy="16" r="3" fill="currentColor" /></svg>
 }

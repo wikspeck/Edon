@@ -11,3 +11,9 @@ dist
 
 src-tauri/target
 src-tauri/gen
+desktop/**/bin/
+desktop/**/obj/
+artifacts/
+public/downloads/
+desktop-test-result.json
+desktop-test-error.txt
