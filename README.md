@@ -67,6 +67,6 @@ Audio retains import/library/playlists, two independent tracks, EQ/filter and si
 
 ### Desktop
 
-The Windows edition is a native .NET 10 / WPF editor with a self-contained portable EXE. Tauri has been removed. Native canvas, rich text, pages, local project files and exports work independently of the more complete web editor. Advanced web tools have not all been ported; project formats and storage are separate. Develop in VS Code with npm run desktop:dev; build with npm run desktop:build. See [Native desktop build, features and publishing](docs/desktop.md).
+The Windows edition bundles the complete web editor in Electron, with the same tools and offline local storage. Download the portable EXE; no Tauri or separate runtime installation. Use `npm run desktop:dev` or `npm run desktop:build` in VS Code. Canvas/document/presentation project files can move between browser and desktop using export/import; local libraries do not sync. See [Windows build and publishing](docs/desktop.md).
 
 QA: `npm run check`; `/scripts/video-fixture.html` creates a synthetic clip for import/trim/reload checks. Production publishing is a separate action.

@@ -1,5 +1,6 @@
-import { useRef } from 'react'
-import { Brush, Circle, Eraser, Frame, Hand, Hexagon, Image, Minus, MousePointer2, MoveRight, PaintBucket, PenLine, Pencil, Pipette, Square, Star, Type } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Shapes, Brush, Circle, Eraser, Frame, Hand, Hexagon, Image, Minus, MousePointer2, MoveRight, PaintBucket, PenLine, Pencil, Pipette, Square, Star, Type } from 'lucide-react'
+import { IconLibrary } from './IconLibrary'
 import { imageElementFromFile } from './image-import'
 import { IconButton } from '../ui/IconButton'
 import { TOOL_LABELS, useEditor, type EditorTool } from './editor-state'
@@ -27,6 +28,7 @@ const tools: Array<{ id: EditorTool; icon: typeof MousePointer2 }> = [
 
 export function Toolbar() {
   const { tool, setTool, addElement, page } = useEditor()
+  const [iconsOpen, setIconsOpen] = useState(false)
   const imageInput = useRef<HTMLInputElement>(null)
 
   const chooseTool = (id: EditorTool) => {
@@ -45,6 +47,8 @@ export function Toolbar() {
           <IconButton label={TOOL_LABELS[id]} shortcut={TOOL_SHORTCUTS[id]} active={tool === id} onClick={() => chooseTool(id)}><Icon size={17} strokeWidth={1.8} /></IconButton>
         </div>
       ))}
+      <IconButton label="Icon library" onClick={() => setIconsOpen(true)}><Shapes size={17} /></IconButton>
+      {iconsOpen && <IconLibrary onClose={() => setIconsOpen(false)} />}
       <input ref={imageInput} className="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" onChange={(event) => { importImage(event.target.files?.[0]); event.target.value = '' }} />
     </aside>
   )

@@ -1,0 +1,26 @@
+<!doctype html><html><head><title>Export regression</title><style>body{background:#eeede8;color:#20211f;font:16px system-ui;padding:30px}#scene{display:flex;gap:24px}img{width:360px;border:1px solid #888}button{padding:12px}</style></head><body><h1>Export parity checks</h1><p id="status">Running…</p><div id="scene"></div><button id="export">Export PNG</button><script type="module">
+import {createDocument,createElement} from '/src/model/document.ts';
+import {serializeRasterScene} from '/src/editor/raster-scene.tsx';
+import {serializeArtwork,exportArtwork} from '/src/editor/artwork-export.ts';
+const doc=createDocument('Export regression',360,280),page=doc.pages[0];
+const rect=createElement('rectangle',20,20,160,80);rect.fillPaint={type:'linear-gradient',angle:90,stops:[{id:'a',offset:0,color:'#ff0000'},{id:'b',offset:1,color:'#0000ff'}]};rect.cornerRadii=[24,0,24,0];rect.stroke='#00ff00';rect.strokeWidth=6;
+const arrow=createElement('arrow',220,30,100,40);arrow.stroke='#000000';arrow.strokeWidth=3;arrow.strokeDash=[6,4];
+const path=createElement('path',20,220,80,40);path.pathData='M0 0 L80 0 L40 40 Z';path.fill='#000000';path.fillPaint={type:'solid',color:'#000000'};
+const text=createElement('text',20,120,300,90);text.textHtml='<p>Hello <strong>Edon</strong></p><p>Second line</p>';text.fontSize=22;
+const pixel=createElement('raster',230,220,80,40);const source=document.createElement('canvas');source.width=2;source.height=1;const c=source.getContext('2d');c.fillStyle='#ff0000';c.fillRect(0,0,1,1);c.fillStyle='#0000ff';c.fillRect(1,0,1,1);pixel.imageUrl=source.toDataURL();
+const masked=createElement('rectangle',240,120,80,80);masked.fill='#00ff00';masked.fillPaint={type:'solid',color:'#00ff00'};masked.mask={id:'mask',type:'shape',shape:'ellipse',cornerRadius:0,sides:4,inset:0,inverted:false};
+page.elements=[rect,arrow,text,pixel,path,masked];
+await document.fonts.ready;
+try{
+ const svg=serializeRasterScene(page.elements,{x:0,y:0,width:360,height:280},'#ffffff');
+ const xml=new DOMParser().parseFromString(svg,'image/svg+xml');if(xml.querySelector('parsererror'))throw Error(xml.querySelector('parsererror').textContent);
+ const image=new Image();image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);await image.decode();
+ const output=document.createElement('canvas');output.width=360;output.height=280;const context=output.getContext('2d');context.drawImage(image,0,0);const png=output.toDataURL();
+ const sample=(x,y)=>Array.from(context.getImageData(x,y,1,1).data);
+ const checks=[['mask clips corner',sample(241,121)[0]===255],['mask keeps center',sample(280,160)[1]===255&&sample(280,160)[0]===0],['vector path rasterized',sample(60,230)[0]<50],['arrow rasterized',sample(240,50)[0]<100||sample(245,50)[0]<100],['gradient left red',sample(45,60)[0]>170],['gradient right blue',sample(155,60)[2]>170],['different corner radii',sample(21,21)[0]===255&&sample(21,21)[1]===255&&sample(178,21)[1]>180],['crisp raster red',sample(245,240)[0]===255&&sample(245,240)[2]===0],['crisp raster blue',sample(290,240)[2]===255&&sample(290,240)[0]===0]];
+ let textPixels=0;for(let y=120;y<175;y++)for(let x=20;x<280;x++){const p=sample(x,y);if(p[0]<100&&p[1]<100&&p[2]<100)textPixels++;}checks.push(['rich text rendered',textPixels>150]);
+ const vector=serializeArtwork(page,page.elements);checks.push(['SVG gradient stops',vector.includes('linearGradient')&&vector.includes('#0000ff')],['SVG arrowhead',vector.includes('marker-end="url(#arrow-')],['SVG dash',vector.includes('stroke-dasharray="6 4"')]);
+ document.getElementById('status').textContent=checks.map(([name,pass])=>(pass?'PASS':'FAIL')+' '+name).join(' · ');
+ const preview=new Image();preview.src=png;document.getElementById('scene').append(preview);document.getElementById('export').onclick=()=>exportArtwork(doc,{format:'png',scale:2,transparent:false});
+}catch(error){document.getElementById('status').textContent='FAIL '+error.message;}
+</script></body></html>

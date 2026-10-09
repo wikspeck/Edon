@@ -10,7 +10,7 @@ import { boundsOf, descendantsOf, elementBounds, pointInElement, type Bounds } f
 import { imageElementFromFile } from './image-import'
 import { SelectionOverlay, type ResizeHandle } from './SelectionOverlay'
 import { VectorEditOverlay } from './VectorEditOverlay'
-import { fitPath, nodesToPath, pointsToNodes } from './vector-path'
+import { fitPath, nodesToPath, pointsToNodes, resizeVectorElement } from './vector-path'
 import { createRasterStroke, drawRasterLayer, paintEnclosedRegion, paintRasterRegion, rasterizeElement, renderRasterStroke, sampleVisibleColor } from './raster-engine'
 import { flattenRenderOrder } from './scene-tree'
 import { alphaHitTest } from './alpha-hit-test'
@@ -246,7 +246,7 @@ export function Canvas() {
       const dy = (event.clientY - gesture.start.y) / editor.zoom
       const nextBounds = resizedBounds(gesture.selectionBounds, gesture.handle, dx, dy, event.shiftKey, event.altKey)
       const origins = new Map(gesture.targets.map((target) => [target.id, target]))
-      editor.mutateElements((elements) => elements.map((element) => { const origin = origins.get(element.id); if (!origin) return element; const relX = gesture.selectionBounds.width ? (origin.x - gesture.selectionBounds.x) / gesture.selectionBounds.width : 0; const relY = gesture.selectionBounds.height ? (origin.y - gesture.selectionBounds.y) / gesture.selectionBounds.height : 0; return { ...element, x: Math.round(nextBounds.x + relX * nextBounds.width), y: Math.round(nextBounds.y + relY * nextBounds.height), width: Math.max(1, Math.round(origin.width * nextBounds.width / Math.max(1, gesture.selectionBounds.width))), height: Math.max(1, Math.round(origin.height * nextBounds.height / Math.max(1, gesture.selectionBounds.height))) } }), true)
+      editor.mutateElements((elements) => elements.map((element) => { const origin = origins.get(element.id); if (!origin) return element; const relX = gesture.selectionBounds.width ? (origin.x - gesture.selectionBounds.x) / gesture.selectionBounds.width : 0; const relY = gesture.selectionBounds.height ? (origin.y - gesture.selectionBounds.y) / gesture.selectionBounds.height : 0; return resizeVectorElement(origin, { x: Math.round(nextBounds.x + relX * nextBounds.width), y: Math.round(nextBounds.y + relY * nextBounds.height), width: Math.max(1, Math.round(origin.width * nextBounds.width / Math.max(1, gesture.selectionBounds.width))), height: Math.max(1, Math.round(origin.height * nextBounds.height / Math.max(1, gesture.selectionBounds.height))) }) }), true)
       return
     }
     const angle = angleFromCenter(event.clientX, event.clientY, gesture.selectionBounds, artboardRef.current, editor.zoom)

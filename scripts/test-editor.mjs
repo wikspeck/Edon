@@ -66,5 +66,30 @@ try {
   assert.match(svg, /brightness\(100%\)/, 'export includes image adjustments')
   assert.match(svg, /x="-50" y="0" width="200"/, 'export retains image crop')
   assert.match(svg, /translate\(60 60\) rotate\(0\) scale\(1 1\) translate\(-50 -40\)/, 'export transforms use the same centre as the canvas')
+  const gradient = createElement('rectangle', 0, 0, 160, 80)
+  gradient.fillPaint = {type:'linear-gradient',angle:90,stops:[{id:'a',offset:0,color:'#ff0000'},{id:'b',offset:1,color:'#0000ff'}]}
+  gradient.cornerRadii=[24,0,24,0]
+  const arrow = createElement('arrow', 10, 10, 100, 40); arrow.strokeDash=[6,4]
+  original.pages[0].elements=[gradient,arrow]
+  const vectorSvg=serializeArtwork(original.pages[0],[gradient,arrow])
+  assert.match(vectorSvg,/linearGradient/, 'SVG retains gradients')
+  assert.match(vectorSvg,/stop-color="#0000ff"/, 'SVG retains every stop')
+  assert.match(vectorSvg,/marker-end="url\(#arrow-/, 'SVG retains arrowheads')
+  assert.match(vectorSvg,/stroke-dasharray="6 4"/, 'SVG retains dash patterns')
+  const {vectorDragDelta,updateHandle,resizeVectorElement,nodesFromPathData}=await vite.ssrLoadModule('/src/editor/vector-path.ts')
+  const delta=vectorDragDelta(0,20,2,90,2,1)
+  assert.ok(Math.abs(delta.x-5)<1e-9 && Math.abs(delta.y)<1e-9, 'node dragging reverses canvas rotation, zoom and scale')
+  const nodes=[{id:'one',kind:'smooth',x:10,y:10,in:{x:0,y:10},out:{x:20,y:10}}]
+  const linked=updateHandle(nodes,'one','out',{x:10,y:20})[0]
+  assert.deepEqual(linked.in,{x:10,y:0},'smooth handles retain opposite tangent')
+  assert.deepEqual(updateHandle(nodes,'one','out',{x:10,y:20},false)[0].in,nodes[0].in,'unlinked handle leaves the other handle intact')
+  const path=createElement('path',0,0,24,24);path.pathData='M0 0 L24 0 L12 24 Z';path.closed=true;path.vectorNodes=nodesFromPathData(path.pathData)
+  const resized=resizeVectorElement(path,{width:48,height:12})
+  assert.equal(resized.vectorNodes[1].x,48,'vector geometry resizes with its frame')
+  assert.equal(resized.vectorNodes[2].y,12,'nonuniform vector resize scales points independently')
+  assert.equal(path.vectorNodes[1].x,24,'resize preserves source geometry for undo')
+  path.vectorNodes=undefined;path.pathData='M0 0 A10 8 45 0 1 24 24 Z'
+  assert.match(resizeVectorElement(path,{width:48,height:48}).pathData,/A20 16 45 0 1 48 48/,'arc resizing preserves rotation and flags')
+  console.log('Vector editing regression tests passed: transformed dragging, linked handles, nodes and resize')
   console.log('Artwork serialization regression tests passed: outline, adjustments, crop and transforms')
 } finally { await vite.close() }

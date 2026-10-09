@@ -2,7 +2,7 @@
  <Grid>
   <Grid.RowDefinitions><RowDefinition Height="64"/><RowDefinition Height="48"/><RowDefinition Height="*"/><RowDefinition Height="30"/></Grid.RowDefinitions>
   <Border Background="#202221" Padding="18,0"><DockPanel>
-   <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center"><Viewbox Width="28" Height="28" Margin="0,0,10,0"><Canvas Width="32" Height="32"><Path Fill="#EEEFE9" Data="M23 4H16a12 12 0 0 0 0 24h7v-6h-7a6 6 0 0 1 0-12h7ZM17 13h6v6h-6a3 3 0 0 1 0-6Z"/><Ellipse Width="6" Height="6" Fill="#EEEFE9" Canvas.Left="25" Canvas.Top="13"/></Canvas></Viewbox><TextBlock Text="edon" FontSize="25" FontWeight="SemiBold"/><TextBlock Text="NATIVE PREVIEW" Foreground="#929C89" FontSize="10" Margin="24,10,14,0"/></StackPanel>
+   <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center"><Viewbox Width="28" Height="28" Margin="0,0,10,0"><Canvas Width="32" Height="32"><Path Fill="#EEEFE9" Data="M29 4H15a12 12 0 0 0 0 24h14v-6H15a6 6 0 0 1 0-12h14ZM14 13h11v6H14a3 3 0 0 1 0-6Z"/></Canvas></Viewbox><TextBlock Text="edon" FontSize="25" FontWeight="SemiBold"/><TextBlock Text="NATIVE PREVIEW" Foreground="#929C89" FontSize="10" Margin="24,10,14,0"/></StackPanel>
    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center"><Button Content="Open" Click="OpenClick"/><Button Content="Save" Click="SaveClick"/><Button Content="Export" Click="ExportClick" Background="#3C4439"/></StackPanel>
    <TextBox x:Name="ProjectName" Width="220" HorizontalAlignment="Center" VerticalAlignment="Center" TextChanged="NameChanged" ToolTip="Project name"/>
   </DockPanel></Border>

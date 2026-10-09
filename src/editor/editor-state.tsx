@@ -1,4 +1,5 @@
 import { createContext, useContext, useReducer, useRef, type ReactNode } from 'react'
+import { resizeVectorElement } from './vector-path'
 import { createId, getActivePage, type BrushPreset, type EdonDocument, type EdonElement, type ElementType, type PaletteColor } from '../model/document'
 import { alignSelection, copyPayload, deleteSelection, distributeSelection, duplicateSelection, groupSelection, pastePayload, renameElement, reorderSelection, ungroupSelection, updateElements, type AlignMode, type DistributeMode, type LayerOrder, type SceneResult } from './scene-commands'
 import { booleanSelection, canBoolean, selectionMask, type BooleanOperation } from './vector-boolean'
@@ -152,7 +153,7 @@ const EditorContext = createContext<EditorContextValue | null>(null)
 
 export function EditorProvider({ initialDocument, children }: { initialDocument: EdonDocument; children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, {
-    drawingMode: 'vector', pixelGridVisible: true,
+    drawingMode: 'vector', pixelGridVisible: false,
     document: initialDocument, selectionIds: [], tool: 'select' as EditorTool, zoom: .5, pan: { x: 0, y: 0 },
     leftPanelOpen: true, rightPanelOpen: true, past: [], future: [], transactionBase: null, transactionLabel: '', canPaste: false,
     silhouettePreview: false, vectorEditId: null, recentColors: [],
@@ -189,8 +190,8 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
     renameLayer: (id, name) => commit(renameElement(state.document, id, name), 'Rename layer'),
     addElement: (element) => dispatch({ type: 'EDIT_PAGE', pageId: page.id, update: (elements) => insertAboveSelection(elements, element, state.selectionIds), label: `Create ${element.name}`, selectionIds: [element.id] }),
     removeElement: (id) => dispatch({ type: 'EDIT_PAGE', pageId: page.id, update: (elements) => elements.filter((element) => element.id !== id), label: 'Remove empty layer', selectionIds: state.selectionIds.filter((selectionId) => selectionId !== id) }),
-    updateElement: (id, patch, live = false) => dispatch({ type: 'EDIT_PAGE', pageId: page.id, update: (elements) => elements.map((element) => element.id === id ? { ...element, ...patch } : element), label: 'Edit properties', live }),
-    updateSelected: (patch, live = false) => dispatch({ type: live ? 'LIVE_DOCUMENT' : 'COMMIT_DOCUMENT', document: updateElements(state.document, (elements) => elements.map((element) => state.selectionIds.includes(element.id) ? { ...element, ...patch } : element)), ...(live ? {} : { label: 'Edit selection' }) } as Action),
+    updateElement: (id, patch, live = false) => dispatch({ type: 'EDIT_PAGE', pageId: page.id, update: (elements) => elements.map((element) => element.id === id ? resizeVectorElement(element, patch) : element), label: 'Edit properties', live }),
+    updateSelected: (patch, live = false) => dispatch({ type: live ? 'LIVE_DOCUMENT' : 'COMMIT_DOCUMENT', document: updateElements(state.document, (elements) => elements.map((element) => state.selectionIds.includes(element.id) ? resizeVectorElement(element, patch) : element)), ...(live ? {} : { label: 'Edit selection' }) } as Action),
     mutateElements: (updater, live = false, label = 'Transform selection') => dispatch({ type: live ? 'LIVE_DOCUMENT' : 'COMMIT_DOCUMENT', document: updateElements(state.document, updater), ...(live ? {} : { label }) } as Action),
     removeSelected: () => state.selectionIds.length && commitResult(deleteSelection(state.document, state.selectionIds), 'Delete selection'),
     duplicate: (offset = 16) => { if (!state.selectionIds.length) return []; const result = duplicateSelection(state.document, state.selectionIds, offset); commitResult(result, 'Duplicate selection'); return result.selectionIds },

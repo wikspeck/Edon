@@ -1,7 +1,7 @@
 {
   "name": "edon",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "packageManager": "npm@11.6.1",
   "engines": {
@@ -21,11 +21,12 @@
     "cf:dev": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",
     "deploy:dry-run": "npm run build && wrangler deploy --dry-run",
-    "desktop:dev": "dotnet run --project desktop/Edon.Desktop/Edon.Desktop.csproj",
-    "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/desktop/build.ps1",
-    "desktop:check": "dotnet build desktop/Edon.Desktop/Edon.Desktop.csproj -c Release",
+    "desktop:dev": "npm run build && electron .",
+    "desktop:build": "npm run build && npm run desktop:runtime && electron-builder --win portable --x64 --publish never",
+    "desktop:check": "node --check desktop/electron/main.cjs",
     "desktop:package": "node scripts/desktop/package-download.mjs",
-    "test:download": "node scripts/test-download.mjs"
+    "test:download": "node scripts/test-download.mjs",
+    "desktop:runtime": "node node_modules/electron/install.js"
   },
   "dependencies": {
     "lucide-react": "1.47.0",
@@ -38,6 +39,8 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "eslint": "10.10.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.7",
@@ -46,5 +49,31 @@
     "typescript-eslint": "8.70.0",
     "vite": "8.3.0",
     "wrangler": "4.135.0"
+  },
+  "main": "desktop/electron/main.cjs",
+  "description": "Edon creative suite",
+  "author": "Edon",
+  "build": {
+    "appId": "dev.edon.desktop",
+    "productName": "Edon",
+    "directories": {
+      "output": "artifacts/electron"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/downloads/**/*",
+      "!dist/**/*.map",
+      "desktop/electron/main.cjs",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "desktop/Edon.Desktop/Assets/edon.ico"
+    },
+    "portable": {
+      "artifactName": "Edon-${version}-win-x64.exe"
+    },
+    "asar": true,
+    "electronDist": "node_modules/electron/dist"
   }
 }

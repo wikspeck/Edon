@@ -1,3 +1,4 @@
+import { VectorProperties } from './VectorProperties'
 import { CustomSelect } from '../ui/CustomSelect'
 import { TextToolbar } from './TextToolbar'
 import { AlignCenter, AlignHorizontalDistributeCenter, AlignLeft, AlignRight, AlignVerticalDistributeCenter, ArrowDownToLine, ArrowRightToLine, ArrowUpToLine, Blend, ChevronDown, Combine, Group, Layers2, Minus, RotateCw, Sparkles, Trash2, Ungroup, X } from 'lucide-react'
@@ -54,6 +55,7 @@ function ElementProperties({ element }: { element: EdonElement }) {
     {isShape && <ShapeProperties element={element} update={update} />}
     {(element.type === 'line' || element.type === 'arrow') && <StrokeProperties element={element} update={update} />}
     {element.type === 'image' && <ImageProperties element={element} update={update} />}
+    {element.vectorNodes?.length ? <VectorProperties key={element.id} element={element} /> : null}
     <EffectsProperties element={element} update={update} />
     <section className="property-section property-danger"><button onClick={editor.removeSelected}><Trash2 size={14} /> Delete layer <kbd>Del</kbd></button></section>
   </div>

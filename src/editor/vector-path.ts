@@ -74,3 +74,59 @@ export function updateNode(nodes: VectorNode[], id: string, point: VectorPoint):
 }
 
 const round = (value: number) => Number(value.toFixed(2))
+
+export function vectorDragDelta(dx: number, dy: number, zoom: number, rotation: number, scaleX: number, scaleY: number, precision = 1): VectorPoint {
+ const angle=-rotation*Math.PI/180
+ return {x:(dx*Math.cos(angle)-dy*Math.sin(angle))/zoom/(scaleX||1)*precision,y:(dx*Math.sin(angle)+dy*Math.cos(angle))/zoom/(scaleY||1)*precision}
+}
+export function updateHandle(nodes: VectorNode[], id: string, handle: 'in'|'out', point: VectorPoint, linked = true): VectorNode[] {
+ return nodes.map(node=>{
+  if(node.id!==id)return node
+  const opposite=handle==='in'?'out':'in'
+  const other=node[opposite]
+  if(!linked||node.kind!=='smooth'||!other)return {...node,[handle]:point}
+  const dx=point.x-node.x,dy=point.y-node.y,length=Math.hypot(dx,dy)
+  const ratio=length?Math.hypot(other.x-node.x,other.y-node.y)/length:0
+  return {...node,[handle]:point,[opposite]:{x:node.x-dx*ratio,y:node.y-dy*ratio}}
+ })
+}
+
+export function nodesFromPathData(path: string): VectorNode[] | undefined {
+ if((path.match(/M/g)??[]).length!==1 || /[a-zASTQ]/.test(path)) return undefined
+ const tokens=path.match(/[MLHVCZ]|-?\d*\.?\d+(?:e[-+]?\d+)?/gi)??[]
+ const nodes:VectorNode[]=[];let command='',index=0,x=0,y=0
+ const number=()=>Number(tokens[index++])
+ while(index<tokens.length){
+  if(/^[A-Z]$/.test(tokens[index]))command=tokens[index++]
+  if(command==='Z')break
+  if(command==='C'){
+   const out={x:number(),y:number()},incoming={x:number(),y:number()};x=number();y=number()
+   if(!nodes.length)return undefined
+   nodes[nodes.length-1].out=out
+   nodes.push({id:createId('node'),x,y,kind:'smooth',in:incoming})
+  }else if(['M','L','H','V'].includes(command)){
+   if(command==='H')x=number();else if(command==='V')y=number();else{x=number();y=number()}
+   nodes.push({id:createId('node'),x,y,kind:'corner'});if(command==='M')command='L'
+  }else return undefined
+ }
+ if(nodes.length>1 && nodes.at(-1)!.x===nodes[0].x&&nodes.at(-1)!.y===nodes[0].y){nodes[0].in=nodes.pop()!.in;nodes[0].kind=nodes[0].in?'smooth':nodes[0].kind}
+ return nodes
+}
+
+export function resizeVectorElement(element: import('../model/document').EdonElement, patch: Partial<import('../model/document').EdonElement>): import('../model/document').EdonElement {
+ const result={...element,...patch}
+ if(element.type!=='path'||patch.pathData!==undefined||patch.vectorNodes!==undefined||(!('width' in patch)&&!('height' in patch)))return result
+ const sx=result.width/element.width,sy=result.height/element.height
+ const point=(p:VectorPoint)=>({x:p.x*sx,y:p.y*sy})
+ if(element.vectorNodes){result.vectorNodes=element.vectorNodes.map(node=>({...node,...point(node),in:node.in?point(node.in):undefined,out:node.out?point(node.out):undefined}));result.pathData=nodesToPath(result.vectorNodes,result.closed)}
+ else if(element.pathData)result.pathData=element.pathData.replace(/([MLHVCSQTAZ])([^MLHVCSQTAZ]*)/gi,(_segment,command:string,coordinates:string)=>{
+  const kind=command.toUpperCase();let index=0
+  return command+coordinates.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi,number=>{
+   const current=index++;let factor=kind==='H'?sx:kind==='V'?sy:current%2?sy:sx
+   if(kind==='A'){const position=current%7;factor=position===0||position===5?sx:position===1||position===6?sy:1}
+   return String(Number((Number(number)*factor).toFixed(5)))
+  })
+ })
+ if(element.sourcePoints)result.sourcePoints=element.sourcePoints.map(point)
+ return result
+}
