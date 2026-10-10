@@ -15,7 +15,7 @@ export type FillPaint =
 export type ElementEffect =
   | { id: string; type: 'drop-shadow'; enabled: boolean; color: string; opacity: number; offsetX: number; offsetY: number; blur: number; spread: number }
   | { id: string; type: 'outline'; enabled: boolean; color: string; opacity: number; width: number }
-  | { id: string; type: 'glow'; enabled: boolean; color: string; opacity: number; blur: number; spread: number; strength: number }
+  | { id: string; type: 'glow'; enabled: boolean; color: string; opacity: number; blur: number; spread: number; strength: number; shape?: 'contour' | 'circle' | 'rectangle'; falloff?: number; offsetX?: number; offsetY?: number }
   | { id: string; type: 'gaussian-blur'; enabled: boolean; radius: number }
   | { id: string; type: 'stylized-shadow'; enabled: boolean; color: string; opacity: number; angle: number; distance: number }
 
@@ -81,10 +81,22 @@ export interface EdonElement {
   adjustments?: ImageAdjustments
   mask?: ElementMask
   effects: ElementEffect[]
+  ui?: UiProperties
+  vectorFill?: { sourceId: string; overlap: number }
+}
+
+export interface UiAnimation { preset: 'fade' | 'rise' | 'scale' | 'custom'; trigger: 'load' | 'hover' | 'click'; duration: number; delay: number; easing: 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out'; repeat: boolean; distance: number; keyframes?: { offset: number; opacity?: number; translateX?: number; translateY?: number; scale?: number; rotate?: number }[] }
+export interface UiProperties {
+  role: 'container' | 'button' | 'input' | 'checkbox' | 'card' | 'navigation' | 'badge'
+  label?: string
+  href?: string
+  layout?: { direction: 'row' | 'column'; gap: number; padding: number; align: 'start' | 'center' | 'end'; justify: 'start' | 'center' | 'end' | 'space-between' }
+  animation?: UiAnimation
+  component?: { name: string; sourceId?: string }
 }
 
 export interface EdonPage { id: string; name: string; width: number; height: number; background: string; elements: EdonElement[]; docHtml?: string }
-export type DocumentKind = 'doc' | 'canvas' | 'music' | 'video' | 'presentation'
+export type DocumentKind = 'doc' | 'canvas' | 'music' | 'video' | 'presentation' | 'ui'
 export interface AudioTrack { id: string; assetId: string; name: string; duration: number; bpm: number; beatOffset: number; start: number; end: number; volume: number; low: number; mid: number; high: number; deck?: 0 | 1; filter?: number; resonance?: number; echo?: number; reverb?: number; pan?: number; cue?: number; loopBeats?: number; hotCues?: number[]; echoBeats?: number }
 export type FadeParameter = 'low' | 'mid' | 'high' | 'filter' | 'volume' | 'echo' | 'reverb' | 'pan'
 export interface FadePoint { at: number; value: number }

@@ -1,0 +1,31 @@
+{
+  "name": "edon-mcp",
+  "version": "1.2.0",
+  "description": "Create, inspect and edit real local Edon designs with MCP tools and a design workflow.",
+  "author": {
+    "name": "Edon"
+  },
+  "interface": {
+    "displayName": "Edon",
+    "shortDescription": "Design direkt in Edon",
+    "longDescription": "Erstelle lokale Edon-Designs und UI-Layouts mit Komponenten, Keyframe-Animationen, Vektor-Füllungen und Effekten. Prüfe PNG-Vorschauen, exportiere HTML und nutze Undo/Redo. Benötigt Edon Windows 0.4.0 und Node.js 22 oder neuer.",
+    "developerName": "Edon",
+    "category": "Creativity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "logo": "./assets/edon-icon.png",
+    "composerIcon": "./assets/edon-icon.png",
+    "logoDark": "./assets/edon-icon.png",
+    "composerIconDark": "./assets/edon-icon.png",
+    "websiteURL": "https://edon.wik-speck.workers.dev/",
+    "defaultPrompt": [
+      "Erstelle ein Logo in Edon und zeige mir eine Vorschau.",
+      "Verbessere mein geöffnetes Edon-Design.",
+      "Erstelle eine Präsentation mit drei Seiten in Edon."
+    ]
+  },
+  "skills": "./skills",
+  "mcpServers": "./mcp.json"
+}

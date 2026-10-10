@@ -1,0 +1,20 @@
+{
+  "name": "edon-local",
+  "interface": {
+    "displayName": "Edon"
+  },
+  "plugins": [
+    {
+      "name": "edon-mcp",
+      "source": {
+        "source": "local",
+        "path": "./edon-mcp"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Creativity"
+    }
+  ]
+}

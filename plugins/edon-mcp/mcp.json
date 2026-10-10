@@ -8,5 +8,6 @@
       ],
       "cwd": "${PLUGIN_ROOT}"
     }
-  }
+  },
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
 }

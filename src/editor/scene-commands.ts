@@ -1,6 +1,7 @@
 import { createElement, createId, type EdonDocument, type EdonElement } from '../model/document'
 import { boundsOf, descendantsOf, rootSelection, translateElements } from './geometry'
 import { uniqueLayerName } from './scene-tree'
+import { applyUiLayouts } from './ui-design'
 
 export type LayerOrder = 'forward' | 'backward' | 'front' | 'back'
 export type AlignMode = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
@@ -8,7 +9,7 @@ export type DistributeMode = 'horizontal' | 'vertical'
 export interface SceneResult { document: EdonDocument; selectionIds: string[] }
 
 export function updateElements(document: EdonDocument, updater: (elements: EdonElement[]) => EdonElement[]): EdonDocument {
-  return { ...document, pages: document.pages.map((page) => page.id === document.activePageId ? { ...page, elements: updater(page.elements) } : page) }
+  return { ...document, pages: document.pages.map((page) => page.id === document.activePageId ? { ...page, elements: document.kind === 'ui' ? applyUiLayouts(updater(page.elements)) : updater(page.elements) } : page) }
 }
 
 export function deleteSelection(document: EdonDocument, ids: string[]): SceneResult {
@@ -25,7 +26,7 @@ export function duplicateSelection(document: EdonDocument, ids: string[], offset
     const source = descendantsOf(elements, roots.map((element) => element.id))
     const idMap = new Map(source.map((element) => [element.id, createId(element.type)]))
     const copies: EdonElement[] = []
-    for (const element of source) copies.push({ ...element, id: idMap.get(element.id)!, name: uniqueLayerName([...elements, ...copies], element.name), parentId: element.parentId ? idMap.get(element.parentId) ?? element.parentId : null, x: element.x + offset, y: element.y + offset })
+    for (const element of source) copies.push({ ...element, id: idMap.get(element.id)!, name: uniqueLayerName([...elements, ...copies], element.name), parentId: element.parentId ? idMap.get(element.parentId) ?? element.parentId : null, x: element.x + offset, y: element.y + offset, ...(element.vectorFill ? { vectorFill: { ...element.vectorFill, sourceId: idMap.get(element.vectorFill.sourceId) ?? element.vectorFill.sourceId } } : {}) })
     nextSelection = roots.map((element) => idMap.get(element.id)!)
     return [...elements, ...copies]
   })

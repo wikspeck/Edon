@@ -1,3 +1,4 @@
+import { assertDesignField } from './design-validation'
 import type { EdonDocument, EdonElement, EdonPage, ElementType } from '../../model/document'
 import { API_LIMITS, type ElementPatch } from './contract'
 import { PublicApiError } from './errors'
@@ -6,7 +7,7 @@ const HEX_COLOR = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i
 const ID = /^[a-z][a-z0-9-]{0,31}_[a-zA-Z0-9-]{8,80}$/
 const SAFE_DATA_IMAGE = /^data:image\/(png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/
 const ELEMENT_TYPES = new Set<ElementType>(['group', 'frame', 'rectangle', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'path', 'text', 'image', 'raster'])
-const PATCH_FIELDS = new Set(['name', 'parentId', 'x', 'y', 'width', 'height', 'rotation', 'scaleX', 'scaleY', 'opacity', 'blendMode', 'fill', 'fillPaint', 'stroke', 'strokeWidth', 'visible', 'locked', 'text', 'fontFamily', 'fontSize', 'fontWeight', 'textAlign', 'imageUrl'])
+const PATCH_FIELDS = new Set(['name', 'parentId', 'x', 'y', 'width', 'height', 'rotation', 'scaleX', 'scaleY', 'opacity', 'blendMode', 'fill', 'fillPaint', 'stroke', 'strokeWidth', 'visible', 'locked', 'text', 'fontFamily', 'fontSize', 'fontWeight', 'textAlign', 'imageUrl', 'ui', 'vectorFill', 'pathData', 'closed', 'cornerRadius', 'cornerRadii', 'effects'])
 
 const invalid = (field: string, message: string): never => { throw new PublicApiError('VALIDATION_ERROR', message, 400, { field }) }
 
@@ -28,6 +29,7 @@ export function assertElementPatch(patch: ElementPatch): void {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) invalid('patch', 'Patch must be an object.')
   const unknown = Object.keys(patch).find((key) => !PATCH_FIELDS.has(key))
   if (unknown) invalid(unknown, `Unknown or immutable element field: ${unknown}.`)
+  for (const field of ['ui','vectorFill','pathData','closed','cornerRadius','cornerRadii','effects'] as const) if (patch[field] !== undefined) assertDesignField(field,patch[field])
   if (patch.name !== undefined) assertName(patch.name, 'name', API_LIMITS.elementNameMax)
   for (const field of ['x', 'y', 'rotation', 'scaleX', 'scaleY', 'strokeWidth', 'fontSize', 'fontWeight'] as const) if (patch[field] !== undefined && !Number.isFinite(patch[field])) invalid(field, `${field} must be a finite number.`)
   for (const field of ['x', 'y'] as const) if (patch[field] !== undefined && Math.abs(patch[field]) > 1_000_000) invalid(field, `${field} must be between -1000000 and 1000000.`)

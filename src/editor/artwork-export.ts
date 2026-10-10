@@ -1,7 +1,8 @@
+import { resolveVectorFills } from './vector-fill'
 import { roundedRectPath, shapeGradient } from './shape-geometry'
 import { serializeMask } from './masks'
 import type { EdonDocument, EdonElement, EdonPage } from '../model/document'
-import { cssPaint, elementFilter, maskClipPath, polygonPoints, serializeOutlineFilters } from './rendering'
+import { cssPaint, elementFilter, maskClipPath, polygonPoints, serializeOutlineFilters, serializeShapedGlows } from './rendering'
 import { descendantsOf } from './geometry'
 import { flattenRenderOrder } from './scene-tree'
 import { cleanDocHtml } from './doc-format'
@@ -13,7 +14,7 @@ export async function previewArtwork(document: EdonDocument, slideId = document.
  const page = document.pages.find(page => page.id === slideId)
  if (!page) throw new Error('Page not found')
  await window.document.fonts.ready
- const elements = flattenRenderOrder(page.elements).filter(element => hierarchyVisible(page.elements, element) && element.includeInExport !== false)
+ const elements = flattenRenderOrder(resolveVectorFills(page.elements)).filter(element => hierarchyVisible(page.elements, element) && element.includeInExport !== false)
  const { serializeRasterScene } = await import('./raster-scene')
  const image = await loadImage('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serializeRasterScene(elements, {x:0,y:0,width:page.width,height:page.height}, page.background)))
  const scale = Math.min(1, 1024 / Math.max(page.width, page.height))
@@ -27,7 +28,7 @@ export async function previewArtwork(document: EdonDocument, slideId = document.
 export async function exportArtwork(document: EdonDocument, options: ExportOptions): Promise<void> {
   const page = document.pages.find((item) => item.id === document.activePageId) ?? document.pages[0]
   const selected = options.selectionIds?.length ? new Set(descendantsOf(page.elements, options.selectionIds).map((element) => element.id)) : null
-  const elements = flattenRenderOrder(page.elements).filter((element) => hierarchyVisible(page.elements, element) && element.includeInExport !== false && (!selected || selected.has(element.id)))
+  const elements = flattenRenderOrder(resolveVectorFills(page.elements)).filter((element) => hierarchyVisible(page.elements, element) && element.includeInExport !== false && (!selected || selected.has(element.id)))
   const scope = exportScope(page, elements, Boolean(options.selectionIds?.length))
   await window.document.fonts.ready
   const svg = serializeArtwork(page, elements, scope, options.transparent)
@@ -54,7 +55,7 @@ export async function exportArtwork(document: EdonDocument, options: ExportOptio
 }
 
 export function serializeArtwork(page: EdonPage, elements: EdonElement[], scope = { x: 0, y: 0, width: page.width, height: page.height }, transparent = false): string {
-  const included = new Set(elements.map((element) => element.id)); const content = flattenRenderOrder(page.elements).filter((element) => included.has(element.id)).map((element) => serializeElement(element, scope.x, scope.y)).join('')
+  const included = new Set(elements.map((element) => element.id)); const content = flattenRenderOrder(resolveVectorFills(page.elements)).filter((element) => included.has(element.id)).map((element) => serializeGlowArtwork(element, scope.x, scope.y) + serializeElement(element, scope.x, scope.y)).join('')
   const definitions = elements.map((element) => serializeOutlineFilters(element) + serializeMask(element) + serializePaint(element)).join('')
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${scope.width}" height="${scope.height}" viewBox="0 0 ${scope.width} ${scope.height}"><defs>${definitions}</defs>${transparent ? '' : `<rect width="100%" height="100%" fill="${page.background}"/>`}${content}</svg>`
 }
@@ -116,3 +117,5 @@ function serializePaint(element: EdonElement): string {
  const angle=(paint.angle-90)*Math.PI/180,x=Math.cos(angle)*.5,y=Math.sin(angle)*.5
  return `<linearGradient id="paint-${element.id}" x1="${.5-x}" y1="${.5-y}" x2="${.5+x}" y2="${.5+y}">${stops}</linearGradient>`
 }
+
+function serializeGlowArtwork(e: EdonElement, ox: number, oy: number): string { const glow=serializeShapedGlows(e);if(!glow)return '';return '<g transform="translate('+(e.x-ox+e.width/2)+' '+(e.y-oy+e.height/2)+') rotate('+e.rotation+') scale('+e.scaleX+' '+e.scaleY+') translate('+(-e.width/2)+' '+(-e.height/2)+')" opacity="'+e.opacity+'">'+glow+'</g>' }

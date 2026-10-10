@@ -35,7 +35,7 @@ try {
  const call = async (name,args={}) => { const result = await request('tools/call',{name,arguments:args});return {error:result.isError,result:JSON.parse(result.content[0].text)} }
  assert.equal((await request('initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}})).protocolVersion,'2025-06-18')
  child.stdin.write(JSON.stringify({jsonrpc:'2.0',method:'notifications/initialized'})+'\n')
- assert.equal((await request('tools/list')).tools.length,18)
+ assert.equal((await request('tools/list')).tools.length,19)
  assert.equal((await call('get_connection')).result.connected,true)
  const created = await call('create_document',{input:{name:'MCP integration test',width:800,height:600,idempotencyKey:'test-once'}})
  const document=created.result.resource,slideId=document.pages[0].id
@@ -53,5 +53,5 @@ try {
  assert.equal(rollback.isError,true)
  assert.equal(repository.read().documents[0].pages[0].elements.length,1)
  await call('open_document',{documentId:document.id});assert.equal(opened,document.id)
- console.log('MCP tests passed: stdio initialize/discovery, authenticated loopback, 18 tools, real service mutations, retry, dry run, revision conflict, atomic rollback, open document. Renderer simulated.')
+ console.log('MCP tests passed: stdio initialize/discovery, authenticated loopback, 19 tools, real service mutations, retry, dry run, revision conflict, atomic rollback, open document. Renderer simulated.')
 } finally { child?.kill();close?.();await vite.close() }

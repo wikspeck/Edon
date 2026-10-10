@@ -53,7 +53,7 @@ export function NewFileDialog({ onClose, onCreate }: NewFileDialogProps) {
           <IconButton label="Close dialog" onClick={onClose}><X size={16} /></IconButton>
         </header>
 
-        <div className="file-kind-picker" aria-label="File type">{(['canvas', 'doc', 'presentation', 'video', 'music'] as const).map((value) => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { setKind(value); if (value === 'doc') setPreset('a4'); if (value === 'presentation') setPreset('desktop-hd') }}>{value === 'doc' ? 'Document' : value === 'music' ? 'Audio' : value === 'video' ? 'Video' : value === 'presentation' ? 'Presentation' : 'Canvas'}</button>)}</div>
+        <div className="file-kind-picker" aria-label="File type">{(['canvas', 'ui', 'doc', 'presentation', 'video', 'music'] as const).map((value) => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { setKind(value); if (value === 'doc') setPreset('a4'); if (value === 'presentation') setPreset('desktop-hd') }}>{value === 'ui' ? 'UI design' : value === 'doc' ? 'Document' : value === 'music' ? 'Audio' : value === 'video' ? 'Video' : value === 'presentation' ? 'Presentation' : 'Canvas'}</button>)}</div>
         <div className={`dialog-body ${(kind === 'music' || kind === 'video') ? 'music-create' : ''}`}>
           <section style={{ display: (kind === 'music' || kind === 'video') ? 'none' : undefined }} className="preset-section" aria-label="Canvas presets">
             <div className="section-label">Presets</div>

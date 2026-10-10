@@ -1,3 +1,4 @@
+import { documentKind } from '../model/document'
 import { useRef, useState } from 'react'
 import { Shapes, Brush, Circle, Eraser, Frame, Hand, Hexagon, Image, Minus, MousePointer2, MoveRight, PaintBucket, PenLine, Pencil, Pipette, Square, Star, Type } from 'lucide-react'
 import { IconLibrary } from './IconLibrary'
@@ -27,7 +28,7 @@ const tools: Array<{ id: EditorTool; icon: typeof MousePointer2 }> = [
 ]
 
 export function Toolbar() {
-  const { tool, setTool, addElement, page } = useEditor()
+  const { tool, setTool, addElement, page, document, drawingMode } = useEditor()
   const [iconsOpen, setIconsOpen] = useState(false)
   const imageInput = useRef<HTMLInputElement>(null)
 
@@ -42,7 +43,7 @@ export function Toolbar() {
   }
   return (
     <aside className="editor-toolbar" aria-label="Design tools">
-      {tools.map(({ id, icon: Icon }, index) => (
+      {tools.filter(t => documentKind(document) !== 'ui' || drawingMode === 'pixel' || !['brush','eraser'].includes(t.id)).map(({ id, icon: Icon }, index) => (
         <div key={id} className={index === 1 || index === 7 || index === 15 ? 'tool-group-start' : ''}>
           <IconButton label={TOOL_LABELS[id]} shortcut={TOOL_SHORTCUTS[id]} active={tool === id} onClick={() => chooseTool(id)}><Icon size={17} strokeWidth={1.8} /></IconButton>
         </div>

@@ -1,3 +1,4 @@
+import { applyUiLayouts } from './ui-design'
 import { createContext, useContext, useReducer, useRef, useLayoutEffect, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { connectEditor } from '../integrations/mcp'
@@ -61,12 +62,12 @@ function reducer(state: EditorState, action: Action): EditorState {
     case 'SET_GRID': return { ...state, pixelGridVisible: action.visible }
     case 'EDIT_PAGE': {
       if (!state.document.pages.some((page) => page.id === action.pageId)) return state
-      const document = { ...state.document, pages: state.document.pages.map((page) => page.id === action.pageId ? { ...page, elements: action.update(page.elements) } : page) }
+      const document = { ...state.document, pages: state.document.pages.map((page) => page.id === action.pageId ? { ...page, elements: state.document.kind === 'ui' ? applyUiLayouts(action.update(page.elements)) : action.update(page.elements) } : page) }
       return reducer(state, action.live ? { type: 'LIVE_DOCUMENT', document } : { type: 'COMMIT_DOCUMENT', document, label: action.label, selectionIds: state.document.activePageId === action.pageId ? action.selectionIds : undefined })
     }
     case 'SET_SELECTION': return { ...state, selectionIds: action.ids }
     case 'SET_TOOL': return { ...state, tool: action.tool }
-    case 'SET_ZOOM': return { ...state, zoom: Math.min(8, Math.max(.05, action.zoom)) }
+    case 'SET_ZOOM': return { ...state, zoom: Math.min(64, Math.max(.05, action.zoom)) }
     case 'SET_PAN': return { ...state, pan: action.pan }
     case 'TOGGLE_PANEL': return action.panel === 'left' ? { ...state, leftPanelOpen: !state.leftPanelOpen } : { ...state, rightPanelOpen: !state.rightPanelOpen }
     case 'COMMIT_DOCUMENT': return { ...state, document: touch(action.document, state.document.revision), selectionIds: action.selectionIds ?? state.selectionIds, past: [...state.past.slice(-99), { document: state.document, label: action.label }], future: [] }

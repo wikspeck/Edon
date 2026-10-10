@@ -1,4 +1,4 @@
-import type { BlendMode, EdonDocument, EdonElement, EdonPage, ElementType, FillPaint } from '../../model/document'
+import type { BlendMode, DocumentKind, EdonDocument, EdonElement, EdonPage, ElementType, FillPaint, UiProperties, ElementEffect } from '../../model/document'
 import type { EdonProject } from '../../model/project'
 
 export const PUBLIC_API_VERSION = 'v1' as const
@@ -40,7 +40,7 @@ export type ElementResource = EdonElement
 
 export interface CreateProjectInput { name: string; description?: string; idempotencyKey?: string }
 export interface UpdateProjectInput { name?: string; description?: string; ifMatchRevision: number }
-export interface CreateDocumentInput { name: string; width: number; height: number; projectId?: string; idempotencyKey?: string }
+export interface CreateDocumentInput { name: string; width: number; height: number; kind?: DocumentKind; projectId?: string; idempotencyKey?: string }
 export interface UpdateDocumentInput { name?: string; ifMatchRevision: number }
 export interface CreateSlideInput { name?: string; width?: number; height?: number; background?: string; ifMatchRevision: number; idempotencyKey?: string }
 export interface UpdateSlideInput { name?: string; width?: number; height?: number; background?: string; ifMatchRevision: number }
@@ -69,6 +69,13 @@ export interface ElementPatch {
   fontWeight?: number
   textAlign?: 'left' | 'center' | 'right'
   imageUrl?: string
+  ui?: UiProperties
+  vectorFill?: { sourceId: string; overlap: number }
+  pathData?: string
+  closed?: boolean
+  cornerRadius?: number
+  cornerRadii?: [number,number,number,number]
+  effects?: ElementEffect[]
 }
 
 export interface CreateElementInput extends ElementPatch {

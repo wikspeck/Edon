@@ -1,5 +1,26 @@
 # Edon MCP
 
+## Edon plugin
+
+The Edon 1.2.0 plugin packages the MCP server with branding, starter prompts
+and the edon-design skill. It is installed locally as edon-mcp@edon-local.
+Restart Codex to load it; keep Edon desktop open. The previous standalone
+MCP registration was removed to avoid duplicate tools.
+
+[Private plugin](https://chatgpt.com/plugins/plugins_6aca4ff6c3008191b47794deeba29ac7).
+An account copy still requires a host that supports local stdio processes.
+
+To install from a source checkout:
+
+```powershell
+codex plugin marketplace add C:\Users\wiksp\Documents\GitHub\Edon\plugins
+codex plugin add edon-mcp@edon-local
+```
+
+## Standalone MCP configuration
+
+The following remains an alternative setup; do not enable both at once.
+
 The local MCP server edits the workspace of the running Windows desktop app.
 It connects through an authenticated loopback bridge. It does not expose your
 designs on the internet, execute scripts, or grant arbitrary filesystem access.
@@ -19,7 +40,7 @@ The plugin directory is self-contained and has no npm runtime dependencies.
 Tools: `get_connection`, `list_projects`, `get_project`, `create_project`,
 `list_documents`, `get_document`, `create_document`, `list_slides`, `create_slide`,
 `list_elements`, `create_element`, `update_element`, `apply_operations`,
-`search_edon`, `open_document`, `get_preview`, `undo_document`, `redo_document`.
+`search_edon`, `open_document`, `get_preview`, `undo_document`, `redo_document`, `export_ui`.
 Previews return an actual PNG rendered with the same components as the canvas.
 
 Read the document first. Pass stable document, slide and element IDs, and the
@@ -45,3 +66,9 @@ a later two-layer batch was undone in one step and redone, and the PNG preview
 matched the canvas. The independent stdio test covers authentication, startup,
 tool discovery, revisions, retries, dry-run and rollback. Codex registration
 requires a host restart before the new tools appear in an existing chat.
+
+## Keeping app and plugin aligned
+
+UI files use kind `ui`; element patches support ui, pathData, effects, cornerRadii and vectorFill. The HTML export is available through export_ui. Requirements: desktop 0.4.0, plugin 1.2.0.
+
+Run `npm run sync:mcp` after OpenAPI changes. `npm run check:mcp-schema` fails when the packaged tool schemas drift. Every feature change must include applicable contract, validation, tools, skill, tests and plugin release updates. No Plugin Creator tag is needed when asking for an Edon change. Existing host sessions need a restart to load new plugin tools.

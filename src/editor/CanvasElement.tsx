@@ -2,7 +2,7 @@ import { memo, useEffect, useLayoutEffect, useRef, type CSSProperties, type Poin
 import { roundedRectPath, shapeGradient } from './shape-geometry'
 import { cleanDocHtml } from './doc-format'
 import type { EdonElement, GradientStop } from '../model/document'
-import { baseElementStyle, cssPaint, elementFilter, maskClipPath, polygonPoints } from './rendering'
+import { baseElementStyle, cssPaint, elementFilter, maskClipPath, polygonPoints, serializeShapedGlows } from './rendering'
 import { registerAlphaImage } from './alpha-hit-test'
 
 interface CanvasElementProps {
@@ -19,7 +19,13 @@ interface CanvasElementProps {
   onBeginVectorEdit: (id: string) => void
 }
 
-export const CanvasElement = memo(function CanvasElement({ exportMode, element, selected, editingText, silhouette, hidden, onPointerDown, onContextMenu, onTextEdit, onBeginTextEdit, onBeginVectorEdit }: CanvasElementProps) {
+export const CanvasElement = memo(function CanvasElement(props: CanvasElementProps) {
+  const e = props.element
+  const glow = !props.silhouette && !props.hidden && e.type !== 'group' ? serializeShapedGlows(e) : ''
+  return <>{glow && <svg aria-hidden="true" width={e.width} height={e.height} viewBox={`0 0 ${e.width} ${e.height}`} style={{...baseElementStyle(e),position:'absolute',overflow:'visible',pointerEvents:'none'}} dangerouslySetInnerHTML={{__html:glow}} />}<CanvasElementContent {...props}/></>
+})
+
+function CanvasElementContent({ exportMode, element, selected, editingText, silhouette, hidden, onPointerDown, onContextMenu, onTextEdit, onBeginTextEdit, onBeginVectorEdit }: CanvasElementProps) {
   const textRef = useRef<HTMLSpanElement>(null)
   useLayoutEffect(() => {
     const html = element.textHtml ? cleanDocHtml(element.textHtml) : (element.text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
@@ -62,7 +68,7 @@ export const CanvasElement = memo(function CanvasElement({ exportMode, element, 
   const fill = silhouette ? '#050506' : element.fillPaint.type === 'solid' ? element.fill : `url(#paint-${element.id})`
   const stroke = { stroke: silhouette ? '#050506' : element.stroke, strokeWidth: element.strokeWidth, strokeOpacity: element.strokeOpacity, strokeDasharray: element.strokeDash.join(' '), strokeLinecap: element.strokeCap, strokeLinejoin: element.strokeJoin }
   return <div {...common}><svg width="100%" height="100%" viewBox={`0 0 ${element.width} ${element.height}`} overflow="visible"><PaintDefinition id={element.id} stops={element.fillPaint.type === 'solid' ? [] : element.fillPaint.stops} radial={element.fillPaint.type === 'radial-gradient'} angle={element.fillPaint.type === 'linear-gradient' ? element.fillPaint.angle : 0} shape={{width:element.width,height:element.height}} />{element.type === 'ellipse' ? <><ellipse cx={element.width/2} cy={element.height/2} rx={element.width/2} ry={element.height/2} fill={fill}/><ellipse cx={element.width/2} cy={element.height/2} rx={Math.max(0,element.width/2-element.strokeWidth/2)} ry={Math.max(0,element.height/2-element.strokeWidth/2)} fill="none" {...stroke}/></> : <><path d={roundedRectPath(element.width,element.height,element.cornerRadii)} fill={fill}/><path d={roundedRectPath(element.width,element.height,element.cornerRadii,element.strokeWidth/2)} fill="none" {...stroke}/></>}</svg></div>
-})
+}
 
 function PaintDefinition({ id, stops, radial, angle, shape }: { id: string; stops: GradientStop[]; radial: boolean; angle: number; shape?: {width:number;height:number} }) {
   if (!stops.length) return null

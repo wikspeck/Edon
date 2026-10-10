@@ -1,3 +1,4 @@
+import { canVectorFill, createVectorFill, resolveVectorFills } from './vector-fill'
 import { MaskDefinition } from './MaskDefinition'
 import { ImageOutline } from './ImageOutline'
 import { useEffect, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from 'react'
@@ -72,7 +73,7 @@ export function Canvas() {
     const zoomAtCursor = (event: WheelEvent) => {
       event.preventDefault()
       const rect = viewport.getBoundingClientRect()
-      const nextZoom = Math.min(8, Math.max(.05, editor.zoom * Math.exp(-event.deltaY * .0015)))
+      const nextZoom = Math.min(64, Math.max(.05, editor.zoom * Math.exp(-event.deltaY * .0015)))
       const cursorX = event.clientX - (rect.left + rect.width / 2); const cursorY = event.clientY - (rect.top + rect.height / 2); const ratio = nextZoom / editor.zoom
       editor.setPan({ x: cursorX - (cursorX - editor.pan.x) * ratio, y: cursorY - (cursorY - editor.pan.y) * ratio }); editor.setZoom(nextZoom)
     }
@@ -112,6 +113,14 @@ export function Canvas() {
   }
   const runBucket = async (point: Point, clicked?: EdonElement) => {
     if (bucketBusy.current) return
+    if (clicked?.vectorFill) clicked = editor.page.elements.find(e => e.id === clicked?.vectorFill?.sourceId)
+    if (editor.drawingMode === 'vector' && clicked && canVectorFill(clicked) && !clicked.vectorFill) {
+      const existing = editor.page.elements.find(e => e.vectorFill?.sourceId === clicked.id)
+      if (existing) editor.updateElement(existing.id, { fill: editor.artSettings.color, fillPaint: { type: 'solid', color: editor.artSettings.color } })
+      else { const fill = createVectorFill(clicked, editor.artSettings.color); editor.mutateElements(es => es.flatMap(e => e.id === clicked.id ? [fill, { ...e, fill: '#00000000', fillPaint: { type: 'solid' as const, color: '#00000000' } }] : [e]), false, 'Vector fill'); editor.select(fill.id) }
+      return
+    }
+    if (editor.drawingMode === 'vector' && clicked && !canVectorFill(clicked) && clicked.type !== 'raster') { setNotice('Close the vector contour before filling.'); window.setTimeout(() => setNotice(null), 2800); return }
     bucketBusy.current = true
     setNotice('Filling pixels…')
     try {
@@ -162,7 +171,7 @@ export function Canvas() {
     }
     if (editor.tool === 'fill') {
       event.stopPropagation()
-      if (['frame', 'rectangle', 'ellipse', 'polygon', 'star', 'text'].includes(element.type) || element.type === 'path' && element.closed) editor.updateElement(element.id, { fill: editor.artSettings.color, fillPaint: { type: 'solid', color: editor.artSettings.color } })
+      if (element.type === 'text' && editor.drawingMode === 'vector') editor.updateElement(element.id, { fill: editor.artSettings.color, fillPaint: { type: 'solid', color: editor.artSettings.color } })
       else { const point = pointInArtboard(event.clientX, event.clientY); if (point) void runBucket(point, element) }
       return
     }
@@ -314,13 +323,13 @@ export function Canvas() {
   const drawingElement = gesture?.kind === 'draw' ? makeDrawnElement(gesture) : null
   const pencilPreview = gesture?.kind === 'pencil' && gesture.points.length > 1 ? fitPath(gesture.points, editor.artSettings.smoothing, editor.artSettings.simplify) : null
   const elementMap = new Map(editor.page.elements.map((element) => [element.id, element]))
-  const renderOrder = flattenRenderOrder(editor.page.elements)
+  const renderOrder = flattenRenderOrder(resolveVectorFills(editor.page.elements))
   const selectionGeometry = descendantsOf(editor.page.elements, editor.selectionIds).filter((element) => element.type !== 'group')
 
   return <section className="canvas-viewport" ref={viewportRef} style={{ cursor }} onPointerDownCapture={pointerDownCapture} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => context(event)} onDragOver={(event) => { if ([...event.dataTransfer.items].some((item) => item.type.startsWith('image/'))) event.preventDefault() }} onDrop={drop}>
     <div className="canvas-ruler canvas-ruler-x" /><div className="canvas-ruler canvas-ruler-y" />
     <div className="canvas-stage" style={{ width: editor.page.width * editor.zoom, height: editor.page.height * editor.zoom, transform: `translate(calc(-50% + ${editor.pan.x}px), calc(-50% + ${editor.pan.y}px))` }}>
-      <div ref={artboardRef} className={`canvas-artboard ${editor.silhouettePreview ? 'is-silhouette-preview' : ''}`} style={{ width: editor.page.width, height: editor.page.height, background: editor.page.background, transform: `scale(${editor.zoom})` }}>
+      <div ref={artboardRef} className={`canvas-artboard ${editor.silhouettePreview ? 'is-silhouette-preview' : ''}`} style={{ width: editor.page.width, height: editor.page.height, background: editor.page.background, zoom: editor.zoom }}>
         {renderOrder.map((element) => <MaskDefinition key={`mask-${element.id}`} element={element} />)}
         {renderOrder.map((element) => <ImageOutline key={`effects-${element.id}`} element={element} />)}
         {renderOrder.map((element) => isHierarchyVisible(element, elementMap) && <CanvasElement key={element.id} element={isHierarchyLocked(element, elementMap) ? { ...element, locked: true } : element} selected={editor.selectionIds.includes(element.id) || Boolean(element.parentId && editor.selectionIds.includes(element.parentId))} editingText={editingTextId === element.id} silhouette={editor.silhouettePreview} hidden={gesture?.kind === 'raster' && gesture.targetId === element.id} onPointerDown={elementPointerDown} onContextMenu={context} onBeginTextEdit={setEditingTextId} onBeginVectorEdit={(id) => { editor.select(id); editor.setVectorEdit(id) }} onTextEdit={(id, text, width, height, html, keepEditing) => { editor.updateElement(id, { text, textHtml: html, width, height }); if (!keepEditing) setEditingTextId(null) }} />)}

@@ -1,7 +1,7 @@
 {
   "name": "edon",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.4.0",
   "type": "module",
   "packageManager": "npm@11.6.1",
   "engines": {
@@ -16,7 +16,7 @@
     "test:music": "node scripts/test-music.mjs",
     "test:editor": "node scripts/test-editor.mjs",
     "validate:openapi": "node scripts/validate-openapi.mjs",
-    "check": "npm run lint && npm run typecheck && npm run test:editor && npm run test:music && npm run test:api && npm run test:mcp && npm run validate:openapi && npm run test:download && npm run build",
+    "check": "npm run lint && npm run typecheck && npm run test:editor && npm run test:music && npm run test:api && npm run check:mcp-schema && npm run test:ui && npm run test:mcp && npm run validate:openapi && npm run test:download && npm run build",
     "preview": "vite preview",
     "cf:dev": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",
@@ -28,7 +28,10 @@
     "test:download": "node scripts/test-download.mjs",
     "desktop:runtime": "node node_modules/electron/install.js",
     "desktop:publish": "node scripts/desktop/validate-release.mjs && wrangler deploy --config wrangler.downloads.jsonc",
-    "test:mcp": "node scripts/test-mcp.mjs"
+    "test:mcp": "node scripts/test-mcp.mjs",
+    "sync:mcp": "node scripts/sync-mcp-tools.mjs",
+    "check:mcp-schema": "node scripts/sync-mcp-tools.mjs --check",
+    "test:ui": "node scripts/test-ui.mjs"
   },
   "dependencies": {
     "lucide-react": "1.47.0",
