@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "edon-downloads",
+  "main": "./worker/downloads.js",
+  "compatibility_date": "2026-10-10",
+  "assets": {
+    "directory": "./public/downloads",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  }
+}

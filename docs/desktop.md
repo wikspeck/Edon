@@ -35,3 +35,11 @@ The package script derives the filename/version from package.json and splits the
 ## Product video
 
 Add the user's recording at `public/media/edon-demo.mp4` when ready. The homepage only plays it if a real video response exists. Until then it uses an actual editor still image. No video is manufactured.
+
+## Version 0.3.1
+
+The desktop uses the complete web editor, plus native project open/save dialogs. Ctrl+S (or File > Save project as) writes an Edon JSON project to a chosen location. When overwriting an existing project, its previous contents are kept in a sibling .bak file. Autosave remains in the local workspace; Save project as does not establish a permanently linked file. File > Open local storage folder shows desktop data. Audio/video sources remain in their media library and are not embedded in the project JSON.
+
+Precision is a collapsed section in Properties: proportional resizing at 0.01 px resolution and whole-pixel positioning. Arrow keys nudge by 1 px, Shift by 10 px, Alt by 0.1 px; typing in fields does not move objects.
+
+Windows releases are hosted by a separate Worker, edon-downloads. Publish a new Windows release with npm run desktop:build, npm run desktop:package, then npm run desktop:publish. The publish script validates all chunks and their SHA-256 first. Afterwards npm run deploy publishes the website, whose DOWNLOADS service binding proxies the release. Website-only updates cannot remove the Windows binary. Do not deploy edon-downloads without a complete release folder.

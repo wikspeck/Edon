@@ -1,3 +1,4 @@
+import { PrecisionControls } from './PrecisionControls'
 import { VectorProperties } from './VectorProperties'
 import { CustomSelect } from '../ui/CustomSelect'
 import { TextToolbar } from './TextToolbar'
@@ -8,7 +9,7 @@ import { ColorControl } from './ColorPicker'
 import { boundsOf, descendantsOf } from './geometry'
 
 function NumberField({ label, value, onChange, icon }: { label: string; value: number; onChange: (value: number) => void; icon?: React.ReactNode }) {
-  return <label className="property-input"><span>{icon ?? label}</span><input aria-label={label} type="number" value={Number.isInteger(value) ? value : Number(value.toFixed(2))} onChange={(event) => onChange(Number(event.target.value))} /></label>
+  return <label className="property-input"><span>{icon ?? label}</span><input aria-label={label} type="number" step="0.1" value={Number.isInteger(value) ? value : Number(value.toFixed(2))} onChange={(event) => onChange(Number(event.target.value))} /></label>
 }
 
 export function PropertiesPanel() {
@@ -51,6 +52,7 @@ function ElementProperties({ element }: { element: EdonElement }) {
       <div className="property-grid"><NumberField label="X" value={element.x} onChange={(x) => update({ x })} /><NumberField label="Y" value={element.y} onChange={(y) => update({ y })} /><NumberField label="Width" value={element.width} onChange={(width) => update({ width: Math.max(1, width) })} /><NumberField label="Height" value={element.height} onChange={(height) => update({ height: Math.max(1, height) })} /></div>
       <div className="property-grid"><NumberField label="Rotation" icon={<RotateCw size={12} />} value={element.rotation} onChange={(rotation) => update({ rotation })} /><NumberField label="Opacity" icon={<Blend size={12} />} value={Math.round(element.opacity * 100)} onChange={(opacity) => update({ opacity: Math.min(1, Math.max(0, opacity / 100)) })} /><NumberField label="Scale X" value={element.scaleX * 100} onChange={(scaleX) => update({ scaleX: Math.max(.01, scaleX / 100) })} /><NumberField label="Scale Y" value={element.scaleY * 100} onChange={(scaleY) => update({ scaleY: Math.max(.01, scaleY / 100) })} /></div>
     </PropertySection>
+    <PrecisionControls key={`${element.id}-${element.width}-${element.height}`} element={element} />
     {element.type === 'text' && <TypographyProperties element={element} update={update} />}
     {isShape && <ShapeProperties element={element} update={update} />}
     {(element.type === 'line' || element.type === 'arrow') && <StrokeProperties element={element} update={update} />}

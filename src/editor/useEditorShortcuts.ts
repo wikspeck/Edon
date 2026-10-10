@@ -1,3 +1,4 @@
+import { descendantsOf } from './geometry'
 import { useEffect } from 'react'
 import { useEditor } from './editor-state'
 import { isTypingTarget, TOOL_BY_KEY } from './shortcuts'
@@ -11,6 +12,12 @@ export function useEditorShortcuts(enabled = true): void {
       const modifier = event.ctrlKey || event.metaKey
       const run = (action: () => void) => { event.preventDefault(); action() }
 
+      if (!modifier && ['arrowleft','arrowright','arrowup','arrowdown'].includes(key) && editor.selectionIds.length) return run(() => {
+        const step = event.altKey ? .1 : event.shiftKey ? 10 : 1
+        editor.beginTransaction('Nudge selection')
+        for (const element of descendantsOf(editor.page.elements, editor.selectedElements.filter(element => !element.locked).map(element => element.id)).filter(element => !element.locked && element.type !== 'group')) editor.updateElement(element.id, { x: element.x + (key === 'arrowleft' ? -step : key === 'arrowright' ? step : 0), y: element.y + (key === 'arrowup' ? -step : key === 'arrowdown' ? step : 0) }, true)
+        editor.endTransaction()
+      })
       if (modifier && key === 'c') return run(editor.copy)
       if (modifier && key === 'x') return run(editor.cut)
       if (modifier && key === 'v') return run(editor.paste)

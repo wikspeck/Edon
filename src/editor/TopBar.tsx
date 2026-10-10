@@ -4,7 +4,7 @@ import type { EdonDocument } from '../model/document'
 import { BrandMark } from '../ui/BrandMark'
 import { IconButton } from '../ui/IconButton'
 import { useEditor } from './editor-state'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ExportDialog } from './ExportDialog'
 import { COMMAND_SHORTCUTS, TOOL_SHORTCUTS } from './shortcuts'
 import { PixelPreview } from './PixelPreview'
@@ -12,6 +12,16 @@ import { PaletteWindow } from './PaletteWindow'
 
 export function TopBar({ onBack, workspace = 'canvas' }: { onBack: () => void; workspace?: 'doc' | 'canvas' }) {
   const editor = useEditor()
+  const [nativeStatus, setNativeStatus] = useState('')
+  const saveNative = async () => {
+    try { const name=await window.edonDesktop?.saveProject(editor.document.name,JSON.stringify(editor.document,null,2)); if(name)setNativeStatus('Saved '+name) }
+    catch(error) {setNativeStatus('Save failed: '+String(error))}
+  }
+  useEffect(() => {
+    if(!window.edonDesktop)return
+    const listener=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();void saveNative()}}
+    window.addEventListener('keydown',listener);return()=>window.removeEventListener('keydown',listener)
+  })
   const [exportOpen, setExportOpen] = useState(false)
   const [pixelPreview, setPixelPreview] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -20,14 +30,14 @@ export function TopBar({ onBack, workspace = 'canvas' }: { onBack: () => void; w
       <IconButton label="Back to files" onClick={onBack}><ArrowLeft size={15} /></IconButton>
       <div className="editor-brand"><BrandMark size={20} /><span>edon</span></div>
       <div className="topbar-menus">
-        <details><summary>File</summary><div className="app-menu"><button onClick={onBack}>Back to files <kbd>Ctrl Shift O</kbd></button><button onClick={() => window.print()}>Print / PDF <kbd>Ctrl P</kbd></button><span className="menu-separator" /><button onClick={() => downloadDocument(editor.document)}>Export document <kbd>Ctrl Shift E</kbd></button></div></details>
+        <details><summary>File</summary><div className="app-menu"><button onClick={onBack}>Back to files <kbd>Ctrl Shift O</kbd></button>{window.edonDesktop && <><button onClick={() => void saveNative()}>Save project as… <kbd>Ctrl S</kbd></button><button onClick={() => void window.edonDesktop?.showStorage()}>Open local storage folder</button><span className="menu-separator" /></>}<button onClick={() => window.print()}>Print / PDF <kbd>Ctrl P</kbd></button><span className="menu-separator" /><button onClick={() => downloadDocument(editor.document)}>Export document <kbd>Ctrl Shift E</kbd></button></div></details>
         {workspace === 'canvas' && <details><summary>Edit</summary><div className="app-menu"><button onClick={editor.undo} disabled={!editor.past.length}>Undo <kbd>{COMMAND_SHORTCUTS.undo}</kbd></button><button onClick={editor.redo} disabled={!editor.future.length}>Redo <kbd>{COMMAND_SHORTCUTS.redo}</kbd></button><span className="menu-separator" /><button onClick={editor.cut} disabled={!editor.selectionIds.length}>Cut <kbd>{COMMAND_SHORTCUTS.cut}</kbd></button><button onClick={editor.copy} disabled={!editor.selectionIds.length}>Copy <kbd>{COMMAND_SHORTCUTS.copy}</kbd></button><button onClick={editor.paste} disabled={!editor.canPaste}>Paste <kbd>{COMMAND_SHORTCUTS.paste}</kbd></button><button onClick={() => editor.duplicate()} disabled={!editor.selectionIds.length}>Duplicate <kbd>{COMMAND_SHORTCUTS.duplicate}</kbd></button><span className="menu-separator" /><button onClick={editor.selectAll}>Select all <kbd>{COMMAND_SHORTCUTS.selectAll}</kbd></button></div></details>}
         {workspace === 'canvas' && <details><summary>Tools</summary><div className="app-menu">{(['select', 'pen', 'pencil', 'brush', 'eraser', 'fill', 'eyedropper', 'text', 'rectangle', 'ellipse'] as const).map((tool) => <button key={tool} onClick={() => editor.setTool(tool)}>{tool === 'fill' ? 'Paint Bucket' : tool[0].toUpperCase() + tool.slice(1)} <kbd>{TOOL_SHORTCUTS[tool]}</kbd></button>)}</div></details>}
         {workspace === 'canvas' && editor.selectionIds.length > 0 && <details><summary>Object</summary><div className="app-menu"><button onClick={editor.group} disabled={editor.selectionIds.length < 2}>Group <kbd>Ctrl G</kbd></button><button onClick={editor.ungroup} disabled={!editor.selectedElements.some((element) => element.type === 'group')}>Ungroup <kbd>Ctrl Shift G</kbd></button><span className="menu-separator" /><button onClick={() => editor.reorder('front')}>Bring to front <kbd>Ctrl Shift ]</kbd></button><button onClick={() => editor.reorder('forward')}>Bring forward <kbd>Ctrl ]</kbd></button><button onClick={() => editor.reorder('backward')}>Send backward <kbd>Ctrl [</kbd></button><button onClick={() => editor.reorder('back')}>Send to back <kbd>Ctrl Shift [</kbd></button><span className="menu-separator" /><button onClick={editor.createShadowShape}>Create shadow shape</button><button onClick={() => editor.selectSame('type')}>Select same type</button><button onClick={() => editor.selectSame('fill')}>Select same fill</button><span className="menu-separator" /><button onClick={() => editor.toggleSelection('locked')}>{editor.selectedElements.every((element) => element.locked) ? 'Unlock' : 'Lock'} <kbd>Ctrl Shift L</kbd></button><button onClick={() => editor.toggleSelection('visible')}>Hide <kbd>Ctrl Shift H</kbd></button></div></details>}
         {workspace === 'canvas' && <details><summary>View</summary><div className="app-menu"><button onClick={() => editor.togglePanel('left')}>{editor.leftPanelOpen ? 'Hide' : 'Show'} layers</button><button onClick={() => editor.togglePanel('right')}>{editor.rightPanelOpen ? 'Hide' : 'Show'} properties</button><button onClick={() => editor.setPixelGridVisible(!editor.pixelGridVisible)}>{editor.pixelGridVisible ? 'Hide' : 'Show'} pixel grid</button><button onClick={() => setPixelPreview(true)}>Pixel preview</button><button onClick={() => setPaletteOpen(true)}>Document colors</button><button onClick={() => editor.setSilhouettePreview(!editor.silhouettePreview)}>{editor.silhouettePreview ? 'Disable' : 'Enable'} silhouette preview</button><span className="menu-separator" /><button onClick={() => editor.setZoom(1)}>Actual size <kbd>{COMMAND_SHORTCUTS.actualSize}</kbd></button><button onClick={() => editor.setZoom(.5)}>Fit canvas <kbd>{COMMAND_SHORTCUTS.fitCanvas}</kbd></button></div></details>}
       </div>
     </div>
-    <div className="topbar-document"><input aria-label="Document name" defaultValue={editor.document.name} key={editor.document.id} onBlur={(event) => event.target.value.trim() && event.target.value !== editor.document.name && editor.renameDocument(event.target.value.trim())} /><span className="save-indicator"><Check size={11} /> Saved locally</span></div>
+    <div className="topbar-document"><input aria-label="Document name" defaultValue={editor.document.name} key={editor.document.id} onBlur={(event) => event.target.value.trim() && event.target.value !== editor.document.name && editor.renameDocument(event.target.value.trim())} /><span className="save-indicator"><Check size={11} /> {nativeStatus || 'Saved locally'}</span></div>
     {workspace === 'canvas' && editor.selectionIds.length > 1 && <div className="multi-selection-chip"><Group size={12} /> {editor.selectionIds.length} objects</div>}
     <div className="topbar-actions">
       {workspace === 'canvas' && <><IconButton label="Toggle layers panel" active={editor.leftPanelOpen} onClick={() => editor.togglePanel('left')}><PanelLeftClose size={15} /></IconButton><span className="toolbar-separator" /></>}

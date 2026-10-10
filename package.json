@@ -1,7 +1,7 @@
 {
   "name": "edon",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "packageManager": "npm@11.6.1",
   "engines": {
@@ -26,7 +26,8 @@
     "desktop:check": "node --check desktop/electron/main.cjs",
     "desktop:package": "node scripts/desktop/package-download.mjs",
     "test:download": "node scripts/test-download.mjs",
-    "desktop:runtime": "node node_modules/electron/install.js"
+    "desktop:runtime": "node node_modules/electron/install.js",
+    "desktop:publish": "node scripts/desktop/validate-release.mjs && wrangler deploy --config wrangler.downloads.jsonc"
   },
   "dependencies": {
     "lucide-react": "1.47.0",
@@ -64,7 +65,8 @@
       "!dist/downloads/**/*",
       "!dist/**/*.map",
       "desktop/electron/main.cjs",
-      "package.json"
+      "package.json",
+      "desktop/electron/preload.cjs"
     ],
     "win": {
       "target": "portable",
