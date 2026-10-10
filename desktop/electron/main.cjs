@@ -27,6 +27,7 @@ else {
   });
   window = new BrowserWindow({show:false,width:1440,height:920,minWidth:900,minHeight:600,title:'Edon',backgroundColor:'#20211f',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,sandbox:true,nodeIntegration:false,webSecurity:true}});
   const checkSender = event => { if(event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || !event.senderFrame.url.startsWith('edon://app/')) throw new Error('Unauthorized file request'); };
+  require('./mcp-bridge.cjs').startBridge({directory:app.getPath('userData'),window,ipcMain,checkSender}).then(close=>app.once('before-quit',close)).catch(error=>log(error.stack));
   ipcMain.handle('project:open', async event => {
    checkSender(event);
    const result=await dialog.showOpenDialog(window,{title:'Open Edon project',properties:['openFile'],filters:[{name:'Edon project',extensions:['json','edon']}]});

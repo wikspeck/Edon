@@ -9,6 +9,21 @@ import { cleanDocHtml } from './doc-format'
 export type ArtworkFormat = 'png' | 'jpeg' | 'webp' | 'svg'
 export interface ExportOptions { format: ArtworkFormat; scale: 1 | 2 | 4; transparent: boolean; selectionIds?: string[] }
 
+export async function previewArtwork(document: EdonDocument, slideId = document.activePageId) {
+ const page = document.pages.find(page => page.id === slideId)
+ if (!page) throw new Error('Page not found')
+ await window.document.fonts.ready
+ const elements = flattenRenderOrder(page.elements).filter(element => hierarchyVisible(page.elements, element) && element.includeInExport !== false)
+ const { serializeRasterScene } = await import('./raster-scene')
+ const image = await loadImage('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serializeRasterScene(elements, {x:0,y:0,width:page.width,height:page.height}, page.background)))
+ const scale = Math.min(1, 1024 / Math.max(page.width, page.height))
+ const canvas = window.document.createElement('canvas')
+ canvas.width = Math.max(1, Math.round(page.width * scale)); canvas.height = Math.max(1, Math.round(page.height * scale))
+ const context = canvas.getContext('2d'); if (!context) throw new Error('Preview is unavailable')
+ context.drawImage(image, 0, 0, canvas.width, canvas.height)
+ return { documentId: document.id, slideId: page.id, revision: document.revision, mimeType: 'image/png', data: canvas.toDataURL('image/png').split(',')[1], width: canvas.width, height: canvas.height }
+}
+
 export async function exportArtwork(document: EdonDocument, options: ExportOptions): Promise<void> {
   const page = document.pages.find((item) => item.id === document.activePageId) ?? document.pages[0]
   const selected = options.selectionIds?.length ? new Set(descendantsOf(page.elements, options.selectionIds).map((element) => element.id)) : null

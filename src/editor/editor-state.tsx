@@ -1,4 +1,6 @@
-import { createContext, useContext, useReducer, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useReducer, useRef, useLayoutEffect, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
+import { connectEditor } from '../integrations/mcp'
 import { resizeVectorElement } from './vector-path'
 import { createId, getActivePage, type BrushPreset, type EdonDocument, type EdonElement, type ElementType, type PaletteColor } from '../model/document'
 import { alignSelection, copyPayload, deleteSelection, distributeSelection, duplicateSelection, groupSelection, pastePayload, renameElement, reorderSelection, ungroupSelection, updateElements, type AlignMode, type DistributeMode, type LayerOrder, type SceneResult } from './scene-commands'
@@ -159,6 +161,7 @@ export function EditorProvider({ initialDocument, children }: { initialDocument:
     silhouettePreview: false, vectorEditId: null, recentColors: [],
     artSettings: { color: '#171719', size: 6, opacity: 1, hardness: 100, smoothing: 55, stabilization: 35, simplify: 24, brushPreset: 'inking' as BrushPreset, antiAlias: false, fillTolerance: 24, contiguous: true },
   })
+  useLayoutEffect(() => connectEditor({ read: () => state.document, undo: () => flushSync(() => dispatch({type:'UNDO'})), redo: () => flushSync(() => dispatch({type:'REDO'})), busy: () => state.transactionBase !== null, commit: document => flushSync(() => dispatch({type:'COMMIT_DOCUMENT', document, label:'AI edit', selectionIds:[]})) }), [state.document, state.transactionBase])
   const clipboard = useRef<EdonElement[]>([])
   const pasteCount = useRef(0)
   const page = getActivePage(state.document)

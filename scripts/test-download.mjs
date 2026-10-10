@@ -37,3 +37,23 @@ assert.equal((await worker.fetch(request('','GET',{range:'bytes=999-'}),env)).st
 console.log('Resumable download tests passed: cross-chunk, open and suffix ranges.');
 assert.equal((await worker.fetch(new Request('https://edon.test/download/Edon-0.1.0-win-x64.exe'),env)).status,307);
 assert.equal((await worker.fetch(new Request('https://edon.test/download/latest'),env)).headers.get('location'),'https://edon.test/download/'+manifest.filename);
+
+// Exercise the native piping branch with a length-checking TransformStream.
+globalThis.FixedLengthStream = class {
+  constructor(expected) {
+    let received = 0;
+    const stream = new TransformStream({
+      transform(chunk, controller) { received += chunk.byteLength; controller.enqueue(chunk) },
+      flush() { assert.equal(received, expected, 'native stream must contain exactly the advertised bytes') },
+    });
+    this.readable = stream.readable; this.writable = stream.writable;
+  }
+};
+try {
+  assert.equal(await (await worker.fetch(request(), env)).text(), 'MZnativeEdon executable');
+  assets.delete(manifest.chunks[1].path);
+  await assert.rejects(async () => (await worker.fetch(request(), env)).arrayBuffer());
+  assets.set(manifest.chunks[1].path, data[1]);
+  assert.deepEqual(new Uint8Array(await (await worker.fetch(request('', 'GET', {range:'bytes=2-12'}), env)).arrayBuffer()), all.slice(2,13));
+  console.log('Native download piping passed: multi-asset concatenation, failure propagation, fixed byte length and range completion.');
+} finally { delete globalThis.FixedLengthStream }

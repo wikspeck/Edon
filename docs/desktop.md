@@ -16,7 +16,7 @@ npm run build
 npm run deploy:dry-run
 ```
 
-`desktop:build` ensures the official Electron runtime is available and produces `artifacts/electron/Edon-0.3.0-win-x64.exe`. Open that portable EXE without installing a runtime. It is unsigned; signing needs a publisher certificate. The unpacked build lives alongside it for development testing. Close the unpacked test app before rebuilding that folder. App/window/taskbar branding uses the same revised Edon icon.
+`desktop:build` ensures the official Electron runtime is available and produces `artifacts/electron/Edon-0.3.2-win-x64.exe`. Open that portable EXE without installing a runtime. It is unsigned; signing needs a publisher certificate. The unpacked build lives alongside it for development testing. Close the unpacked test app before rebuilding that folder. App/window/taskbar branding uses the same revised Edon icon.
 
 ## Persistence and moving work
 
@@ -43,3 +43,7 @@ The desktop uses the complete web editor, plus native project open/save dialogs.
 Precision is a collapsed section in Properties: proportional resizing at 0.01 px resolution and whole-pixel positioning. Arrow keys nudge by 1 px, Shift by 10 px, Alt by 0.1 px; typing in fields does not move objects.
 
 Windows releases are hosted by a separate Worker, edon-downloads. Publish a new Windows release with npm run desktop:build, npm run desktop:package, then npm run desktop:publish. The publish script validates all chunks and their SHA-256 first. Afterwards npm run deploy publishes the website, whose DOWNLOADS service binding proxies the release. Website-only updates cannot remove the Windows binary. Do not deploy edon-downloads without a complete release folder.
+
+## Local AI design tools
+
+Version 0.3.2 provides a local authenticated MCP bridge for the running desktop workspace. See [MCP setup](mcp.md) for its 18 tools, previews, atomic edits, undo/redo and Codex registration.

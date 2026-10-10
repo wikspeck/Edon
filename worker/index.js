@@ -32,6 +32,19 @@ export default {
     }
     const length = end - start + 1
     headers['Content-Length'] = String(length)
+    if (status === 200 && typeof FixedLengthStream !== 'undefined') {
+      // Native stream piping avoids per-buffer JavaScript CPU on large downloads.
+      const fixed = new FixedLengthStream(length)
+      void (async () => {
+        for (const chunk of release.chunks) {
+          const asset = await env.ASSETS.fetch(new Request(new URL(chunk.path, url), { headers: { 'Accept-Encoding': 'identity' } }))
+          if (!asset.ok || !asset.body) throw new Error('Download asset unavailable')
+          await asset.body.pipeTo(fixed.writable, { preventClose: true })
+        }
+        await fixed.writable.getWriter().close()
+      })().catch(error => { void fixed.writable.abort(error).catch(() => {}) })
+      return new Response(fixed.readable, { status, headers })
+    }
     // Pull one asset at a time; backpressure keeps the EXE out of Worker memory.
     let index = 0, reader, chunkBytes = 0, position = 0
     while(index < release.chunks.length && position + release.chunks[index].bytes <= start) position += release.chunks[index++].bytes
@@ -39,7 +52,12 @@ export default {
       async pull(controller) {
         try {
           while (true) {
-            if(position > end) {if(reader)await reader.cancel(); controller.close();return}
+            if(position > end) {
+              // Finish the asset subrequest before closing the outer response.
+              // Cancelling ASSETS here can abort a fixed-length response in production.
+              if(reader) { while(!(await reader.read()).done) {} reader.releaseLock(); reader=undefined }
+              controller.close();return
+            }
             if (!reader) {
               if (index >= release.chunks.length) { controller.close(); return }
               const chunk = release.chunks[index++]

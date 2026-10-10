@@ -1,6 +1,9 @@
 import { VideoEditor } from './video/VideoEditor'
 import { MusicEditor } from './music/MusicEditor'
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { flushSync } from 'react-dom'
+import { connectedEditor, createMcpHandler } from './integrations/mcp'
+import type { WorkspaceSnapshot } from './integrations/public-api/repository'
 import { EditorView } from './editor/EditorView'
 import { HomeView } from './home/HomeView'
 import { documentKind, type EdonDocument } from './model/document'
@@ -13,6 +16,34 @@ export default function Workspace() {
   const [projects, setProjects] = useState<EdonProject[]>(loadProjects)
   const [activeId, setActiveId] = useState<string | null>(() => /[?&](code|error)=/.test(location.search) ? sessionStorage.getItem('edon.spotify.document') : null)
   const activeDocument = documents.find((document) => document.id === activeId)
+
+  const snapshotRef = useRef({documents, projects})
+  useLayoutEffect(() => { snapshotRef.current = { documents, projects } }, [documents, projects])
+  useEffect(() => {
+    if (!window.edonDesktop?.onMcpRequest) return
+    const read = (): WorkspaceSnapshot => {
+      const live = connectedEditor?.read()
+      const { projects, documents } = snapshotRef.current
+      return structuredClone({ projects, documents: documents.map(document => live?.id === document.id ? live : document) })
+    }
+    return window.edonDesktop.onMcpRequest(createMcpHandler({ read, roleFor: () => 'owner', commit: snapshot => {
+      const live = connectedEditor?.read()
+      const changed = live && snapshot.documents.find(document => document.id === live.id && document.revision !== live.revision)
+      if (changed && connectedEditor?.busy()) throw new Error('Finish the current drag or brush stroke before an AI edit.')
+      const previousDocuments = localStorage.getItem('edon.documents.v1')
+      const previousProjects = localStorage.getItem('edon.projects.v1')
+      try {
+        localStorage.setItem('edon.documents.v1', JSON.stringify(snapshot.documents))
+        localStorage.setItem('edon.projects.v1', JSON.stringify(snapshot.projects))
+      } catch (error) {
+        if (previousDocuments !== null) localStorage.setItem('edon.documents.v1', previousDocuments); else localStorage.removeItem('edon.documents.v1')
+        if (previousProjects !== null) localStorage.setItem('edon.projects.v1', previousProjects); else localStorage.removeItem('edon.projects.v1')
+        throw error
+      }
+      if (changed) connectedEditor?.commit(changed)
+      flushSync(() => { setDocuments(snapshot.documents); setProjects(snapshot.projects) })
+    } }, id => flushSync(() => setActiveId(id))))
+  }, [])
 
   const persist = useCallback((next: EdonDocument[]) => {
     setDocuments(next)

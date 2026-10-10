@@ -19,7 +19,7 @@ const electron = {
   ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
   dialog:{showSaveDialog:async()=>({filePath:target}),showOpenDialog:async()=>({filePaths:[target]})},
 }
-vm.runInNewContext(fs.readFileSync('desktop/electron/main.cjs','utf8'),{require:name=>name==='electron'?electron:require(name),process:{env:{},on(){}},__dirname:path.resolve('desktop/electron'),URL,Response,Headers,Buffer,pathToFileURL})
+vm.runInNewContext(fs.readFileSync('desktop/electron/main.cjs','utf8'),{require:name=>name==='electron'?electron:name==='./mcp-bridge.cjs'?{startBridge:async()=>()=>{}}:require(name),process:{env:{},on(){}},__dirname:path.resolve('desktop/electron'),URL,Response,Headers,Buffer,pathToFileURL})
 await Promise.resolve()
 const event={sender:contents,senderFrame:contents.mainFrame}
 const first=JSON.stringify({id:'doc',pages:[],name:'first'})

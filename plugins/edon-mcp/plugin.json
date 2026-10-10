@@ -1,0 +1,9 @@
+{
+  "name": "edon-mcp",
+  "version": "1.0.0",
+  "description": "Edit real local Edon designs through MCP",
+  "author": {
+    "name": "Edon"
+  },
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+}
